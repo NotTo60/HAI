@@ -13,13 +13,17 @@ def upload_file(conn, local_path, remote_path, compress=False):
     path_to_send = local_path
     if compress:
         temp_dir = tempfile.mkdtemp()
-        tar_path = os.path.join(temp_dir, os.path.basename(local_path) + ".tar.gz")
+        tar_path = os.path.join(
+            temp_dir, os.path.basename(local_path) + ".tar.gz"
+        )
         with tarfile.open(tar_path, "w:gz") as tar:
             tar.add(local_path, arcname=os.path.basename(local_path))
         logger.info(f"Compressed {local_path} to {tar_path}")
         path_to_send = tar_path
     local_md5 = md5sum(path_to_send)
-    logger.info(f"Uploading {path_to_send} to {remote_path} (MD5: {local_md5})")
+    logger.info(
+        f"Uploading {path_to_send} to {remote_path} (MD5: {local_md5})"
+    )
     # ... upload file ...
     # ... verify remote MD5 ...
     if compress:

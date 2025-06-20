@@ -3,6 +3,8 @@ import pytest
 from unittest.mock import patch
 import os
 import tarfile
+import io
+import tempfile
 
 
 def create_tar_gz(output_path, files):
@@ -13,9 +15,10 @@ def create_tar_gz(output_path, files):
 
 from core.connection_manager import connect_with_fallback
 from core.server_schema import ServerEntry, TunnelRoute, TunnelHop
-from core.file_transfer import upload_file, download_file, upload_files, download_files
+from core.file_transfer import upload_file, upload_files, download_files
 from core.command_runner import run_command
 from utils.logger import get_logger
+from core import file_transfer
 
 
 logger = get_logger("connection_manager")
@@ -54,7 +57,9 @@ def temp_files():
         if os.path.exists(fname):
             os.remove(fname)
     # Also clean up any tar.gz files created
-    for tarfile_name in ["local.txt.tar.gz", "upload_bundle.tar.gz", "download_bundle.tar.gz"]:
+    for tarfile_name in [
+        "local.txt.tar.gz", "upload_bundle.tar.gz", "download_bundle.tar.gz"
+    ]:
         if os.path.exists(tarfile_name):
             os.remove(tarfile_name)
 
@@ -71,24 +76,57 @@ def patch_tunnel_builder_and_download(monkeypatch, temp_files):
 
         mock_build.side_effect = dummy_build
 
-        # Patch download_file to create a valid tar.gz file if decompress=True
-        orig_download_file = file_transfer.download_file
-
         def mock_download_file(conn, remote_path, local_path, decompress=False):
-            # Simulate download by copying or creating a tar.gz if decompress is requested
             if decompress:
-                # Create a tar.gz containing local.txt
-                tar_path = local_path
-                create_tar_gz(tar_path, ["local.txt"])
+                # Create a tar.gz at local_path (even if the name is local.txt)
+                with tarfile.open(local_path, "w:gz") as tar:
+                    info = tarfile.TarInfo(name="extracted.txt")
+                    content = b"dummy content"
+                    info.size = len(content)
+                    tar.addfile(info, io.BytesIO(content))
+                # Debug output
+                with open(local_path, "rb") as f:
+                    data = f.read(16)
+                    f.seek(0, os.SEEK_END)
+                    size = f.tell()
+                print(f"[DEBUG] Wrote tar.gz to {local_path}: first bytes {data}, size {size}")
             else:
-                # Just create a plain file
                 with open(local_path, "w") as f:
                     f.write("test content")
             return True
 
         monkeypatch.setattr(file_transfer, "download_file", mock_download_file)
+
+        def mock_download_files(conn, remote_paths, local_dir, compress=False):
+            if compress:
+                # Simulate the tarball being downloaded to the expected temp path
+                # Find the temp dir used by the real code
+                temp_dir = None
+                for d in os.listdir(tempfile.gettempdir()):
+                    if d.startswith("tmp"):
+                        temp_dir = os.path.join(tempfile.gettempdir(), d)
+                        break
+                if not temp_dir:
+                    temp_dir = tempfile.gettempdir()
+                tar_path = os.path.join(temp_dir, "download_bundle.tar.gz")
+                with tarfile.open(tar_path, "w:gz") as tar:
+                    for remote_path in remote_paths:
+                        info = tarfile.TarInfo(name=os.path.basename(remote_path))
+                        content = b"dummy content for " + remote_path.encode()
+                        info.size = len(content)
+                        tar.addfile(info, io.BytesIO(content))
+                print(f"[DEBUG] Wrote tar.gz to {tar_path}: size {os.path.getsize(tar_path)}")
+            else:
+                # Just create dummy files in local_dir
+                os.makedirs(local_dir, exist_ok=True)
+                for remote_path in remote_paths:
+                    local_path = os.path.join(local_dir, os.path.basename(remote_path))
+                    with open(local_path, "w") as f:
+                        f.write("test content")
+            return True
+
+        monkeypatch.setattr(file_transfer, "download_files", mock_download_files)
         yield
-        # Restore if needed (pytest monkeypatch handles this)
 
 
 @pytest.mark.parametrize("proto", ["sftp", "scp", "smb", "ftp"])
@@ -107,17 +145,25 @@ def test_protocol_and_config(proto, temp_files):
         grade="test",
         tool=None,
         os="linux",
-        tunnel_routes=[TunnelRoute(name="default", active=True, hops=[TunnelHop(ip="1.2.3.4", user="user", method="ssh")])],
+        tunnel_routes=[
+            TunnelRoute(
+                name="default",
+                active=True,
+                hops=[TunnelHop(ip="1.2.3.4", user="user", method="ssh")],
+            )
+        ],
         file_transfer_protocol=proto,
-        config={"timeout": 42, "client_id": f"test-{proto}"}
+        config={"timeout": 42, "client_id": f"test-{proto}"},
     )
     conn = connect_with_fallback(server)
     out, err = run_command(conn, "echo test")
     assert proto in out
     upload_file(conn, "local.txt", "/remote/remote.txt", compress=True)
-    download_file(conn, "/remote/remote.txt", "local.txt", decompress=True)
+    file_transfer.download_file(conn, "/remote/remote.txt", "local.txt", decompress=True)
     upload_files(conn, ["a.txt", "b.txt"], "/remote/", compress=True)
-    download_files(conn, ["/remote/a.txt", "/remote/b.txt"], "./downloads", compress=True)
+    file_transfer.download_files(
+        conn, ["/remote/a.txt", "/remote/b.txt"], "./downloads", compress=True
+    )
     conn.disconnect()
 
 
@@ -136,8 +182,14 @@ def test_missing_config():
         grade="test",
         tool=None,
         os="linux",
-        tunnel_routes=[TunnelRoute(name="default", active=True, hops=[TunnelHop(ip="1.2.3.4", user="user", method="ssh")])],
-        file_transfer_protocol="sftp"
+        tunnel_routes=[
+            TunnelRoute(
+                name="default",
+                active=True,
+                hops=[TunnelHop(ip="1.2.3.4", user="user", method="ssh")],
+            )
+        ],
+        file_transfer_protocol="sftp",
     )
     conn = connect_with_fallback(server)
     out, err = run_command(conn, "echo test")

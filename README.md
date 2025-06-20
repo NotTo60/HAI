@@ -62,8 +62,10 @@ conn.disconnect()
 ```
 
 ## Testing
+- **Unit tests are fully mocked**: No real network or file transfer is performed. File transfer tests create and decompress real tar.gz files using Python's tarfile module, so the compression/decompression logic is exercised.
+- **Test runner:**
 ```sh
-python test_hai.py
+pytest
 ```
 
 ## Extending

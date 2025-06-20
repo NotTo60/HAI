@@ -32,5 +32,7 @@ class ServerEntry(BaseModel):
     tool: Optional[str]
     os: Literal["linux", "windows", "unknown"]
     tunnel_routes: List[TunnelRoute]
-    file_transfer_protocol: Optional[Literal["sftp", "scp", "smb", "ftp"]] = "sftp"
+    file_transfer_protocol: Optional[
+        Literal["sftp", "scp", "smb", "ftp"]
+    ] = "sftp"
     config: Optional[Dict[str, Any]] = None

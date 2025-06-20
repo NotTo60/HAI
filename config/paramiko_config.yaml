@@ -1,8 +1,10 @@
 # Sample Paramiko SSH Config
 ssh:
-  timeout: 10
-  allow_agent: true
-  look_for_keys: true
-  compress: false
-  banner_timeout: 5
-  missing_host_key_policy: autoadd 
+  timeout: 10                # Connection timeout in seconds
+  auth_timeout: 10           # Authentication timeout in seconds
+  banner_timeout: 5          # Banner timeout in seconds
+  allow_agent: true          # Use SSH agent for authentication
+  look_for_keys: true        # Look for SSH keys in default locations
+  compress: true             # Enable SSH compression
+  missing_host_key_policy: autoadd  # Policy for unknown host keys
+  client_id: HAI-Client      # Custom client identifier for Paramiko 
