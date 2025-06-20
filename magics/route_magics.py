@@ -1,8 +1,10 @@
 from IPython.core.magic import register_line_magic
+
 from utils.logger import get_logger
 
 logger = get_logger("route_magics")
 servers_cache = {}  # Populate externally
+
 
 @register_line_magic
 def activate_route(line):
@@ -14,6 +16,7 @@ def activate_route(line):
             logger.info(f"Activated route '{route_name}' on '{host}'")
             return
 
+
 @register_line_magic
 def deactivate_route(line):
     host, route_name = line.split()
@@ -23,6 +26,7 @@ def deactivate_route(line):
             route.active = False
             logger.info(f"Deactivated route '{route_name}' on '{host}'")
             return
+
 
 @register_line_magic
 def refresh_routes(line):
@@ -35,4 +39,4 @@ def refresh_routes(line):
                 route.active = True
                 logger.info(f"Route '{route.name}' re-activated")
             except Exception:
-                logger.warning(f"Route '{route.name}' still unreachable") 
+                logger.warning(f"Route '{route.name}' still unreachable")

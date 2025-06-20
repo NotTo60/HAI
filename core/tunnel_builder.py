@@ -1,9 +1,10 @@
-from connectors.ssh_connector import SSHConnector
-from connectors.smb_connector import SMBConnector
 from connectors.impacket_wrapper import ImpacketWrapper
+from connectors.smb_connector import SMBConnector
+from connectors.ssh_connector import SSHConnector
 from utils.logger import get_logger
 
 logger = get_logger("tunnel_builder")
+
 
 class TunnelBuilder:
     @staticmethod
@@ -19,7 +20,7 @@ class TunnelBuilder:
                 password=server.password,
                 ssh_key=server.ssh_key,
                 timeout=config.get("timeout", 10),
-                client_id=config.get("client_id")
+                client_id=config.get("client_id"),
             )
         elif method == "smb":
             conn = SMBConnector(
@@ -27,7 +28,7 @@ class TunnelBuilder:
                 user=server.user,
                 password=server.password,
                 timeout=config.get("timeout", 10),
-                client_id=config.get("client_id")
+                client_id=config.get("client_id"),
             )
         elif method == "custom":
             conn = ImpacketWrapper(
@@ -35,7 +36,7 @@ class TunnelBuilder:
                 user=server.user,
                 password=server.password,
                 timeout=config.get("timeout", 10),
-                client_id=config.get("client_id")
+                client_id=config.get("client_id"),
             )
         elif method == "ftp":
             # Placeholder for future FTPConnector
@@ -43,4 +44,4 @@ class TunnelBuilder:
         else:
             raise Exception(f"Unknown connection method: {method}")
         conn.connect()
-        return conn 
+        return conn

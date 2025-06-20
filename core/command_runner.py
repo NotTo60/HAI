@@ -2,6 +2,7 @@ from utils.logger import get_logger
 
 logger = get_logger("command_runner")
 
+
 def run_command(conn, command):
     logger.info(f"Running command: {command}")
     # TODO: Implement actual remote command execution using conn
@@ -9,6 +10,7 @@ def run_command(conn, command):
     result = f"Simulated output for: {command}"
     logger.info(f"Result: {result}")
     return result
+
 
 def run_commands(conn, commands):
     results = []
@@ -18,4 +20,4 @@ def run_commands(conn, commands):
         result = f"Simulated output for: {cmd}"
         logger.info(f"Result: {result}")
         results.append(result)
-    return results 
+    return results

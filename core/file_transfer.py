@@ -1,17 +1,19 @@
-from utils.md5sum import md5sum
-from utils.logger import get_logger
 import os
+import shutil
 import tarfile
 import tempfile
-import shutil
+
+from utils.logger import get_logger
+from utils.md5sum import md5sum
 
 logger = get_logger("file_transfer")
+
 
 def upload_file(conn, local_path, remote_path, compress=False):
     path_to_send = local_path
     if compress:
         temp_dir = tempfile.mkdtemp()
-        tar_path = os.path.join(temp_dir, os.path.basename(local_path) + '.tar.gz')
+        tar_path = os.path.join(temp_dir, os.path.basename(local_path) + ".tar.gz")
         with tarfile.open(tar_path, "w:gz") as tar:
             tar.add(local_path, arcname=os.path.basename(local_path))
         logger.info(f"Compressed {local_path} to {tar_path}")
@@ -23,6 +25,7 @@ def upload_file(conn, local_path, remote_path, compress=False):
     if compress:
         shutil.rmtree(temp_dir)
     return True
+
 
 def download_file(conn, remote_path, local_path, decompress=False):
     logger.info(f"Downloading {remote_path} to {local_path}")
@@ -39,6 +42,7 @@ def download_file(conn, remote_path, local_path, decompress=False):
         shutil.rmtree(temp_dir)
     return True
 
+
 def upload_files(conn, local_paths, remote_dir, compress=True):
     temp_dir = tempfile.mkdtemp()
     tar_path = os.path.join(temp_dir, "upload_bundle.tar.gz")
@@ -51,6 +55,7 @@ def upload_files(conn, local_paths, remote_dir, compress=True):
     # Optionally, remote extraction logic can be added here
     shutil.rmtree(temp_dir)
     return True
+
 
 def download_files(conn, remote_paths, local_dir, compress=True):
     temp_dir = tempfile.mkdtemp()
@@ -66,4 +71,4 @@ def download_files(conn, remote_paths, local_dir, compress=True):
         tar.extractall(path=local_dir)
     logger.info(f"Extracted files to {local_dir}")
     shutil.rmtree(temp_dir)
-    return True 
+    return True

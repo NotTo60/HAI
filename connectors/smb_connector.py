@@ -3,8 +3,23 @@ from utils.logger import get_logger
 
 logger = get_logger("smb_connector")
 
+
 class SMBConnector(BaseConnector):
-    def __init__(self, host, user, password=None, domain='', lmhash='', nthash='', aesKey='', doKerberos=False, kdcHost=None, timeout=10, client_id=None, **kwargs):
+    def __init__(
+        self,
+        host,
+        user,
+        password=None,
+        domain="",
+        lmhash="",
+        nthash="",
+        aesKey="",
+        doKerberos=False,
+        kdcHost=None,
+        timeout=10,
+        client_id=None,
+        **kwargs,
+    ):
         self.host = host
         self.user = user
         self.password = password
@@ -38,4 +53,4 @@ class SMBConnector(BaseConnector):
             raise Exception("SMB connection not established.")
         logger.info("Listing SMB shares (simulated)")
         # TODO: Implement share listing
-        return ["share1", "share2"] 
+        return ["share1", "share2"]

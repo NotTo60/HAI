@@ -1,5 +1,7 @@
-from typing import List, Optional, Literal, Dict, Any
+from typing import Any, Dict, List, Literal, Optional
+
 from pydantic import BaseModel
+
 
 class TunnelHop(BaseModel):
     ip: str
@@ -8,10 +10,12 @@ class TunnelHop(BaseModel):
     port: Optional[int] = 22
     tool: Optional[str] = None
 
+
 class TunnelRoute(BaseModel):
     name: str
     active: bool = True
     hops: List[TunnelHop]
+
 
 class ServerEntry(BaseModel):
     hostname: str
@@ -29,4 +33,4 @@ class ServerEntry(BaseModel):
     os: Literal["linux", "windows", "unknown"]
     tunnel_routes: List[TunnelRoute]
     file_transfer_protocol: Optional[Literal["sftp", "scp", "smb", "ftp"]] = "sftp"
-    config: Optional[Dict[str, Any]] = None 
+    config: Optional[Dict[str, Any]] = None

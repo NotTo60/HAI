@@ -3,8 +3,23 @@ from utils.logger import get_logger
 
 logger = get_logger("impacket_wrapper")
 
+
 class ImpacketWrapper(BaseConnector):
-    def __init__(self, host, user, password=None, domain='', lmhash='', nthash='', aesKey='', doKerberos=False, kdcHost=None, timeout=10, client_id=None, **kwargs):
+    def __init__(
+        self,
+        host,
+        user,
+        password=None,
+        domain="",
+        lmhash="",
+        nthash="",
+        aesKey="",
+        doKerberos=False,
+        kdcHost=None,
+        timeout=10,
+        client_id=None,
+        **kwargs,
+    ):
         self.host = host
         self.user = user
         self.password = password
@@ -20,7 +35,9 @@ class ImpacketWrapper(BaseConnector):
         self.extra = kwargs
 
     def connect(self):
-        logger.info(f"Connecting to {self.host} as {self.user} using Impacket (SMB/NTLM)")
+        logger.info(
+            f"Connecting to {self.host} as {self.user} using Impacket (SMB/NTLM)"
+        )
         if self.client_id:
             logger.info(f"Using client_id: {self.client_id}")
         # TODO: Implement actual impacket connection logic (e.g., SMBConnection, RemoteShell, etc.)
@@ -40,4 +57,4 @@ class ImpacketWrapper(BaseConnector):
         # TODO: Implement command execution via impacket (e.g., RemoteShell)
         result = f"Simulated output for: {command}"
         logger.info(f"Result: {result}")
-        return result, '' 
+        return result, ""

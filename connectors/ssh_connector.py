@@ -1,11 +1,23 @@
-from connectors.base_connector import BaseConnector
 import paramiko
+
+from connectors.base_connector import BaseConnector
 from utils.logger import get_logger
 
 logger = get_logger("ssh_connector")
 
+
 class SSHConnector(BaseConnector):
-    def __init__(self, host, port, user, password=None, ssh_key=None, timeout=10, client_id=None, **kwargs):
+    def __init__(
+        self,
+        host,
+        port,
+        user,
+        password=None,
+        ssh_key=None,
+        timeout=10,
+        client_id=None,
+        **kwargs,
+    ):
         self.host = host
         self.port = port
         self.user = user
@@ -31,7 +43,7 @@ class SSHConnector(BaseConnector):
                     key_filename=self.ssh_key,
                     timeout=self.timeout,
                     allow_agent=True,
-                    look_for_keys=True
+                    look_for_keys=True,
                 )
             else:
                 self.client.connect(
@@ -41,7 +53,7 @@ class SSHConnector(BaseConnector):
                     password=self.password,
                     timeout=self.timeout,
                     allow_agent=True,
-                    look_for_keys=True
+                    look_for_keys=True,
                 )
             logger.info("SSH connection established.")
         except Exception as e:
@@ -64,4 +76,4 @@ class SSHConnector(BaseConnector):
         logger.info(f"Command output: {out}")
         if err:
             logger.warning(f"Command error: {err}")
-        return out, err 
+        return out, err
