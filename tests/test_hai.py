@@ -189,3 +189,61 @@ def test_missing_config():
     out, err = run_command(conn, "echo test")
     assert "sftp" in out
     conn.disconnect()
+
+
+def test_sshconnector_classmethod_connect(monkeypatch):
+    from connectors.ssh_connector import SSHConnector
+    class DummyClient:
+        def set_missing_host_key_policy(self, policy):
+            pass
+        def connect(self, **kwargs):
+            pass
+        def exec_command(self, cmd):
+            class Dummy:
+                def read(self):
+                    return b"ssh output for: " + cmd.encode()
+            return None, Dummy(), Dummy()
+        def close(self):
+            pass
+    monkeypatch.setattr("paramiko.SSHClient", DummyClient)
+    ssh = SSHConnector.connect_cls(host="1.2.3.4", port=22, user="me", password="pw")
+    def fake_exec_command(self, cmd):
+        return f"ssh output for: {cmd}", ""
+    def fake_disconnect(self):
+        self.connected = False
+    ssh.exec_command = fake_exec_command.__get__(ssh)
+    ssh.disconnect = fake_disconnect.__get__(ssh)
+    assert isinstance(ssh, SSHConnector)
+    out, err = ssh.exec_command("echo test")
+    assert "ssh output" in out
+    ssh.disconnect()
+
+
+def test_smbconnector_classmethod_connect(monkeypatch):
+    from connectors.smb_connector import SMBConnector
+    smb = SMBConnector.connect_cls(host="1.2.3.4", user="me", password="pw")
+    def fake_exec_command(self, cmd):
+        return f"smb output for: {cmd}", ""
+    def fake_disconnect(self):
+        self.connected = False
+    smb.exec_command = fake_exec_command.__get__(smb)
+    smb.disconnect = fake_disconnect.__get__(smb)
+    assert isinstance(smb, SMBConnector)
+    out, err = smb.exec_command("echo test")
+    assert "smb output" in out
+    smb.disconnect()
+
+
+def test_impacketwrapper_classmethod_connect(monkeypatch):
+    from connectors.impacket_wrapper import ImpacketWrapper
+    imp = ImpacketWrapper.connect_cls(host="1.2.3.4", user="me", password="pw")
+    def fake_exec_command(self, cmd):
+        return f"impacket output for: {cmd}", ""
+    def fake_disconnect(self):
+        self.connected = False
+    imp.exec_command = fake_exec_command.__get__(imp)
+    imp.disconnect = fake_disconnect.__get__(imp)
+    assert isinstance(imp, ImpacketWrapper)
+    out, err = imp.exec_command("echo test")
+    assert "impacket output" in out
+    imp.disconnect()
