@@ -77,3 +77,9 @@ class SSHConnector(BaseConnector):
         if err:
             logger.warning(f"Command error: {err}")
         return out, err
+
+    @classmethod
+    def connect_cls(cls, host, port=22, user=None, password=None, ssh_key=None, timeout=10, client_id=None, **kwargs):
+        instance = cls(host, port, user, password, ssh_key, timeout, client_id, **kwargs)
+        instance.connect()
+        return instance

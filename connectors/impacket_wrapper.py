@@ -58,3 +58,9 @@ class ImpacketWrapper(BaseConnector):
         result = f"Simulated output for: {command}"
         logger.info(f"Result: {result}")
         return result, ""
+
+    @classmethod
+    def connect_cls(cls, host, user, password=None, domain="", lmhash="", nthash="", aesKey="", doKerberos=False, kdcHost=None, timeout=10, client_id=None, **kwargs):
+        instance = cls(host, user, password, domain, lmhash, nthash, aesKey, doKerberos, kdcHost, timeout, client_id, **kwargs)
+        instance.connect()
+        return instance
