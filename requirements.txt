@@ -1,0 +1,5 @@
+pydantic>=1.10
+paramiko>=3.0
+impacket>=0.10
+ipython>=8.0
+pyyaml>=6.0 

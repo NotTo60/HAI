@@ -1,0 +1,8 @@
+# Sample Paramiko SSH Config
+ssh:
+  timeout: 10
+  allow_agent: true
+  look_for_keys: true
+  compress: false
+  banner_timeout: 5
+  missing_host_key_policy: autoadd 

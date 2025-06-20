@@ -1,0 +1,33 @@
+[
+  {
+    "hostname": "server01",
+    "ip": "192.168.0.10",
+    "dns": "srv01.local",
+    "location": "datacenter-x",
+    "user": "admin",
+    "password": "pass123",
+    "ssh_key": "~/.ssh/id_rsa",
+    "connection_method": "ssh",
+    "port": 22,
+    "active": true,
+    "grade": "must-win",
+    "tool": "custom_backdoor_tool",
+    "os": "linux",
+    "tunnel_routes": [
+      {
+        "name": "via-gateway-A",
+        "active": true,
+        "hops": [
+          { "ip": "10.0.0.1", "user": "jump1", "method": "ssh", "port": 22 }
+        ]
+      },
+      {
+        "name": "via-vpn-B",
+        "active": false,
+        "hops": [
+          { "ip": "10.1.1.1", "user": "vpnuser", "method": "custom", "tool": "myvpn" }
+        ]
+      }
+    ]
+  }
+] 
