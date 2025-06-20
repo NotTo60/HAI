@@ -133,5 +133,46 @@ pytest
 - Implement new file transfer protocols in `core/file_transfer.py`
 - Add new iPython magics in `magics/`
 
+## CLI Usage: Direct Connect
+
+You can now connect to a server directly from the command line without using servers.json:
+
+```
+python -m hai.connect --host <hostname_or_ip> --port <port> --user <username> --password <password> --method <ssh|smb|impacket>
+```
+
+This will initiate a connection using the specified parameters.
+
+## Connector Usage: Instance vs Class Method
+
+Each connector (SSH, SMB, Impacket) supports two ways to connect:
+
+### 1. Instance Method (`connect(self)`)
+Create an object, then call `connect()`:
+```python
+from connectors.ssh_connector import SSHConnector
+ssh = SSHConnector(host="1.2.3.4", port=22, user="me", password="pw")
+ssh.connect()
+# ... use ssh ...
+ssh.disconnect()
+```
+
+### 2. Class Method (`@classmethod connect_cls`)
+Call `connect_cls` directly on the class for a one-liner:
+```python
+from connectors.ssh_connector import SSHConnector
+ssh = SSHConnector.connect_cls(host="1.2.3.4", port=22, user="me", password="pw")
+# ... use ssh ...
+ssh.disconnect()
+```
+
+- The class method will instantiate the connector, connect, and return the connected instance.
+- The instance method gives you more control if you want to set more attributes before connecting.
+
+This pattern works for all connectors:
+- `SSHConnector.connect_cls(...)`
+- `SMBConnector.connect_cls(...)`
+- `ImpacketWrapper.connect_cls(...)`
+
 ---
 MIT License 
