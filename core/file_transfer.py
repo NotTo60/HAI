@@ -34,7 +34,6 @@ def download_file(conn, remote_path, local_path, decompress=False):
     logger.info(f"Downloaded file MD5: {local_md5}")
     if decompress:
         temp_dir = tempfile.mkdtemp()
-        tar_path = os.path.join(temp_dir, os.path.basename(remote_path))
         # Assume file is already downloaded as tar_path
         with tarfile.open(local_path, "r:gz") as tar:
             tar.extractall(path=os.path.dirname(local_path))
