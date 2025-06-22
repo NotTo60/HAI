@@ -1,13 +1,17 @@
 from typing import Any, Dict, List, Literal, Optional
-
 from pydantic import BaseModel
+from utils.constants import (
+    SUPPORTED_CONNECTION_METHODS, SUPPORTED_FILE_TRANSFER_PROTOCOLS, SUPPORTED_OS_TYPES, SERVER_GRADES
+)
 
 
 class TunnelHop(BaseModel):
     ip: str
     user: str
-    method: Literal["ssh", "smb", "custom", "ftp"]
-    port: Optional[int] = 22
+    method: Literal[
+        tuple(SUPPORTED_CONNECTION_METHODS)
+    ]
+    port: Optional[int] = None
     tool: Optional[str] = None
 
 
@@ -25,14 +29,20 @@ class ServerEntry(BaseModel):
     user: str
     password: Optional[str]
     ssh_key: Optional[str]
-    connection_method: Literal["ssh", "smb", "custom", "ftp"]
+    connection_method: Literal[
+        tuple(SUPPORTED_CONNECTION_METHODS)
+    ]
     port: int
     active: bool
-    grade: str
+    grade: Literal[
+        tuple(SERVER_GRADES)
+    ]
     tool: Optional[str]
-    os: Literal["linux", "windows", "unknown"]
+    os: Literal[
+        tuple(SUPPORTED_OS_TYPES)
+    ]
     tunnel_routes: List[TunnelRoute]
     file_transfer_protocol: Optional[
-        Literal["sftp", "scp", "smb", "ftp"]
-    ] = "sftp"
+        Literal[tuple(SUPPORTED_FILE_TRANSFER_PROTOCOLS)]
+    ] = SUPPORTED_FILE_TRANSFER_PROTOCOLS[0]
     config: Optional[Dict[str, Any]] = None
