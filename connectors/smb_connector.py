@@ -1,5 +1,6 @@
 from connectors.base_connector import BaseConnector
 from utils.logger import get_logger
+from utils.constants import DEFAULT_TIMEOUT
 
 logger = get_logger("smb_connector")
 
@@ -16,7 +17,7 @@ class SMBConnector(BaseConnector):
         aesKey="",
         doKerberos=False,
         kdcHost=None,
-        timeout=10,
+        timeout=DEFAULT_TIMEOUT,
         client_id=None,
         **kwargs,
     ):
@@ -56,7 +57,7 @@ class SMBConnector(BaseConnector):
         return ["share1", "share2"]
 
     @classmethod
-    def connect_cls(cls, host, user, password=None, domain="", lmhash="", nthash="", aesKey="", doKerberos=False, kdcHost=None, timeout=10, client_id=None, **kwargs):
+    def connect_cls(cls, host, user, password=None, domain="", lmhash="", nthash="", aesKey="", doKerberos=False, kdcHost=None, timeout=DEFAULT_TIMEOUT, client_id=None, **kwargs):
         instance = cls(host, user, password, domain, lmhash, nthash, aesKey, doKerberos, kdcHost, timeout, client_id, **kwargs)
         instance.connect()
         return instance
