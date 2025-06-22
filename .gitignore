@@ -95,3 +95,6 @@ celerybeat.pid
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# GitHub secrets setup script (contains sensitive data)
+setup_gh_secrets.sh

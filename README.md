@@ -1,6 +1,6 @@
 # Hybrid Attack Interface (HAI)
 
-A Python-based hybrid connection system for secure, resilient, and flexible remote access to diverse servers using SSH, SMB, Impacket, and more. Supports multi-hop tunnels, fallback logic, file transfer (with MD5 and compression), dynamic iPython magics, modular connectors, **enhanced logging**, **state management**, and **threaded operations**.
+A Python-based hybrid connection system for secure, resilient, and flexible remote access to diverse servers using SSH, SMB, Impacket, and more. Supports multi-hop tunnels, fallback logic, file transfer (with MD5 and compression), dynamic iPython magics, modular connectors, **enhanced logging**, **state management**, **threaded operations**, and **centralized constants management**.
 
 ## Features
 - Modular connectors: SSH, SMB, Impacket (NTLM), and easily extensible
@@ -25,6 +25,43 @@ A Python-based hybrid connection system for secure, resilient, and flexible remo
 - `examples/` — Example scripts including threaded operations demo
 - `logs/` — **Per-server and system logs with rotation**
 - `state/` — **Saved operation states for resuming work**
+
+## Quick Start
+
+### Installation
+```bash
+# Clone the repository
+git clone <repository-url>
+cd hai
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run threaded operations
+python cli_threaded.py --command "whoami" --servers all
+```
+
+### Basic Usage
+```python
+from core.threaded_operations import run_command_on_servers
+from core.server_schema import ServerEntry
+import json
+
+# Load servers
+with open('servers/servers.json') as f:
+    servers_data = json.load(f)
+    servers = [ServerEntry(**server) for server in servers_data]
+
+# Run command on all servers with threading
+results = run_command_on_servers(
+    servers=servers,
+    command="whoami",
+    max_workers=10,
+    show_progress=True
+)
+
+print(f"Success rate: {results.success_rate:.1f}%")
+```
 
 ## Configuration
 ### Server Inventory (`servers/servers.json`)
@@ -78,67 +115,151 @@ ssh:
   client_id: HAI-Client      # Custom client identifier for Paramiko
 ```
 
-## Usage Example
+## Threaded Operations with Enhanced Features
+
+HAI supports advanced threaded operations with integrated logging, state management, and progress tracking.
+
+### Basic Threaded Operations
+
 ```python
-from core.connection_manager import connect_with_fallback
-from core.file_transfer import upload_file, download_file, upload_files, download_files
-from core.command_runner import run_command, run_commands
-from core.server_schema import ServerEntry
-import json
+from core.threaded_operations import (
+    run_command_on_servers,
+    run_commands_on_servers,
+    upload_file_to_servers,
+    download_file_from_servers,
+    custom_operation_on_servers
+)
 
-# Load server config
-with open('servers/servers.json') as f:
-    servers = json.load(f)
-    # Convert dict to ServerEntry if needed
+# Single command
+results = run_command_on_servers(
+    servers=servers,
+    command="whoami",
+    max_workers=10,
+    show_progress=True
+)
 
-server = ... # Build ServerEntry from config
-conn = connect_with_fallback(server)
+# Multiple commands
+results = run_commands_on_servers(
+    servers=servers,
+    commands=["whoami", "pwd", "uname -a"],
+    max_workers=10,
+    show_progress=True
+)
 
-# Run a command
-out, err = run_command(conn, 'whoami')
+# File upload with compression
+results = upload_file_to_servers(
+    servers=servers,
+    local_path="/local/file.txt",
+    remote_path="/remote/file.txt",
+    compress=True,
+    max_workers=10,
+    show_progress=True
+)
 
-# Upload a file (with compression)
-upload_file(conn, 'local.txt', '/remote/remote.txt', compress=True)
-
-# Download multiple files
-download_files(conn, ['/remote/a.txt', '/remote/b.txt'], './downloads', compress=True)
-
-conn.disconnect()
+# File download with decompression
+results = download_file_from_servers(
+    servers=servers,
+    remote_path="/remote/file.txt",
+    local_path="/local/file.txt",
+    decompress=True,
+    max_workers=10,
+    show_progress=True
+)
 ```
 
-## iPython Magics (`magics/`)
-- `activate_route <host> <route>` — Activate a tunnel route for a host
-- `deactivate_route <host> <route>` — Deactivate a tunnel route
-- `refresh_routes <host>` — Try to reactivate all inactive routes for a host
+### Advanced Usage with ThreadedOperations Class
 
-## Supported File Transfer Protocols
-- `sftp`, `scp` (via SSH)
-- `smb` (via SMBConnector)
-- `ftp` (future extension)
-- Specify protocol in your server JSON:
-```json
-{
-  ...
-  "file_transfer_protocol": "sftp"
-}
+```python
+from core.threaded_operations import ThreadedOperations
+from utils.enhanced_logger import get_enhanced_logger
+
+# Create operations manager with enhanced logging
+ops = ThreadedOperations(max_workers=20)
+
+# Run operations with comprehensive logging and state management
+results = ops.run_command_on_servers(
+    servers=servers,
+    command="whoami",
+    show_progress=True,
+    description="Checking user identity across servers",
+    save_state=True,  # Save state after operation
+    load_state=True,  # Load state before operation
+    timeout=30
+)
+
+# Access detailed logging information
+logger = get_enhanced_logger("batch_operations")
+logger.log_info(f"Operation completed with {results.success_rate:.1f}% success rate")
+
+# Chain operations with state persistence
+if results.successful:
+    successful_servers = results.get_successful_servers()
+    
+    # Continue with successful servers
+    follow_up_results = ops.run_commands_on_servers(
+        servers=successful_servers,
+        commands=["pwd", "ls -la"],
+        show_progress=True,
+        description="Gathering system information",
+        save_state=True
+    )
 ```
 
-## Fallback & Multi-hop Tunnels
-- Define multiple `tunnel_routes` per server
-- Automatic fallback: tries each active route in order
-- Each route can have multiple hops (jump hosts, VPNs, etc.)
+### CLI Usage
 
-## Testing
-- **Unit tests are fully mocked**: No real network or file transfer is performed. File transfer tests create and decompress real tar.gz files using Python's tarfile module, so the compression/decompression logic is exercised.
-- **Comprehensive test coverage**: Tests cover all new features including enhanced logging, state management, constants integration, and threaded operations.
-- **Test runner:**
-```sh
-pytest
+```bash
+# Run command with state management
+python cli_threaded.py --command "whoami" --servers all --save-state --load-state
+
+# Run command with custom logging
+python cli_threaded.py --command "ls -la" --servers server01,server02 --workers 20 --timeout 30
+
+# Upload file with compression and state saving
+python cli_threaded.py --upload /local/file.txt /remote/file.txt --servers all --compress --save-state
+
+# Download file with decompression and state loading
+python cli_threaded.py --download /remote/file.txt /local/file.txt --servers all --decompress --load-state
+
+# Run multiple commands
+python cli_threaded.py --commands "whoami,pwd,uname -a" --servers all --workers 15
+```
+
+### Results and Statistics
+
+All threaded operations return a `BatchResult` object with comprehensive statistics:
+
+```python
+# Access detailed statistics
+print(f"Success rate: {results.success_rate:.1f}%")
+print(f"Execution time: {results.execution_time:.2f} seconds")
+print(f"Total servers: {results.total_servers}")
+print(f"Successful: {results.total_successful}")
+print(f"Failed: {results.total_failed}")
+
+# Access individual results
+for result in results.successful:
+    print(f"{result.server.hostname}: {result.result['output']}")
+
+for result in results.failed:
+    print(f"{result.server.hostname}: {result.error}")
+
+# Chain operations
+successful_servers = results.get_successful_servers()
+failed_servers = results.get_failed_servers()
+
+# Run different operations on each group
+if successful_servers:
+    # Continue with successful servers
+    pass
+
+if failed_servers:
+    # Retry or alternative approach for failed servers
+    pass
 ```
 
 ## Enhanced Logging System
 
-HAI now features a comprehensive logging system with per-server loggers, performance tracking, and structured logging.
+HAI features a comprehensive logging system with per-server loggers, performance tracking, and structured logging.
 
 ### Features
 - **Per-server logging**: Each server gets its own log file with detailed operation tracking
@@ -273,62 +394,65 @@ from utils.constants import (
 - **Configuration**: Easy to modify behavior without code changes
 - **Documentation**: Clear documentation of all configuration options
 
-## Threaded Operations with Enhanced Features
+## Traditional Usage (Non-Threaded)
 
-HAI now supports advanced threaded operations with integrated logging and state management.
-
-### Advanced Usage with Logging and State
+For single-server operations or when threading isn't needed:
 
 ```python
-from core.threaded_operations import ThreadedOperations
-from utils.enhanced_logger import get_enhanced_logger
+from core.connection_manager import connect_with_fallback
+from core.file_transfer import upload_file, download_file, upload_files, download_files
+from core.command_runner import run_command, run_commands
+from core.server_schema import ServerEntry
+import json
 
-# Create operations manager with enhanced logging
-ops = ThreadedOperations(max_workers=20)
+# Load server config
+with open('servers/servers.json') as f:
+    servers = json.load(f)
+    # Convert dict to ServerEntry if needed
 
-# Run operations with comprehensive logging and state management
-results = ops.run_command_on_servers(
-    servers=servers,
-    command="whoami",
-    show_progress=True,
-    description="Checking user identity across servers",
-    save_state=True,  # Save state after operation
-    load_state=True,  # Load state before operation
-    timeout=30
-)
+server = ... # Build ServerEntry from config
+conn = connect_with_fallback(server)
 
-# Access detailed logging information
-logger = get_enhanced_logger("batch_operations")
-logger.log_info(f"Operation completed with {results.success_rate:.1f}% success rate")
+# Run a command
+out, err = run_command(conn, 'whoami')
 
-# Chain operations with state persistence
-if results.successful:
-    successful_servers = results.get_successful_servers()
-    
-    # Continue with successful servers
-    follow_up_results = ops.run_commands_on_servers(
-        servers=successful_servers,
-        commands=["pwd", "ls -la"],
-        show_progress=True,
-        description="Gathering system information",
-        save_state=True
-    )
+# Upload a file (with compression)
+upload_file(conn, 'local.txt', '/remote/remote.txt', compress=True)
+
+# Download multiple files
+download_files(conn, ['/remote/a.txt', '/remote/b.txt'], './downloads', compress=True)
+
+conn.disconnect()
 ```
 
-### CLI with Enhanced Features
+## iPython Magics (`magics/`)
+- `activate_route <host> <route>` — Activate a tunnel route for a host
+- `deactivate_route <host> <route>` — Deactivate a tunnel route
+- `refresh_routes <host>` — Try to reactivate all inactive routes for a host
 
-```bash
-# Run command with state management
-python cli_threaded.py --command "whoami" --servers all --save-state --load-state
+## Supported File Transfer Protocols
+- `sftp`, `scp` (via SSH)
+- `smb` (via SMBConnector)
+- `ftp` (future extension)
+- Specify protocol in your server JSON:
+```json
+{
+  ...
+  "file_transfer_protocol": "sftp"
+}
+```
 
-# Run command with custom logging
-python cli_threaded.py --command "ls -la" --servers server01,server02 --workers 20 --timeout 30
+## Fallback & Multi-hop Tunnels
+- Define multiple `tunnel_routes` per server
+- Automatic fallback: tries each active route in order
+- Each route can have multiple hops (jump hosts, VPNs, etc.)
 
-# Upload file with compression and state saving
-python cli_threaded.py --upload /local/file.txt /remote/file.txt --servers all --compress --save-state
-
-# Download file with decompression and state loading
-python cli_threaded.py --download /remote/file.txt /local/file.txt --servers all --decompress --load-state
+## Testing
+- **Unit tests are fully mocked**: No real network or file transfer is performed. File transfer tests create and decompress real tar.gz files using Python's tarfile module, so the compression/decompression logic is exercised.
+- **Comprehensive test coverage**: Tests cover all new features including enhanced logging, state management, constants integration, and threaded operations.
+- **Test runner:**
+```sh
+pytest
 ```
 
 ## Improved Organization and Maintainability
@@ -376,14 +500,6 @@ If you're upgrading from an older version:
 3. **Enable state management**: Add `save_state=True` and `load_state=True` to threaded operations
 4. **Update logging**: Use the new logging methods for better tracking
 
-## Extending
-- Add new connectors in `connectors/` (subclass `BaseConnector`)
-- Implement new file transfer protocols in `core/file_transfer.py`
-- Add new iPython magics in `magics/`
-- **Extend logging**: Add new log types in `utils/enhanced_logger.py`
-- **Add constants**: Define new constants in `utils/constants.py`
-- **Enhance state management**: Extend state persistence in `utils/state_manager.py`
-
 ## CLI Usage: Direct Connect
 
 You can now connect to a server directly from the command line without using servers.json:
@@ -425,215 +541,42 @@ This pattern works for all connectors:
 - `SMBConnector.connect_cls(...)`
 - `ImpacketWrapper.connect_cls(...)`
 
-## Threaded Operations with Progress Bars
+## Extending
+- Add new connectors in `connectors/` (subclass `BaseConnector`)
+- Implement new file transfer protocols in `core/file_transfer.py`
+- Add new iPython magics in `magics/`
+- **Extend logging**: Add new log types in `utils/enhanced_logger.py`
+- **Add constants**: Define new constants in `utils/constants.py`
+- **Enhance state management**: Extend state persistence in `utils/state_manager.py`
 
-HAI now supports running operations on multiple servers in parallel with progress tracking and detailed statistics.
+## Dependencies
 
-### Basic Usage
+The project requires the following Python packages:
 
-```python
-from core.threaded_operations import run_command_on_servers, BatchResult
-from core.server_schema import ServerEntry
-
-# Load your servers
-servers = [...]  # List of ServerEntry objects
-
-# Run a command on all servers with threading
-results: BatchResult = run_command_on_servers(
-    servers=servers,
-    command="whoami",
-    max_workers=10,
-    show_progress=True
-)
-
-# Access results
-print(f"Success rate: {results.success_rate:.1f}%")
-print(f"Successful: {results.total_successful}/{results.total_servers}")
-print(f"Failed: {results.total_failed}")
-
-# Get lists of successful/failed servers for further operations
-successful_servers = results.get_successful_servers()
-failed_servers = results.get_failed_servers()
-
-# Chain operations - run another command only on failed servers
-if failed_servers:
-    retry_results = run_command_on_servers(
-        servers=failed_servers,
-        command="echo 'Alternative command'",
-        show_progress=True
-    )
+```
+pydantic>=1.10          # Data validation and settings management
+paramiko>=3.0           # SSH protocol implementation
+impacket>=0.10          # Network protocol library
+ipython>=8.0            # Interactive Python shell
+pyyaml>=6.0             # YAML configuration files
+tqdm>=4.64              # Progress bars for threaded operations
+concurrent-futures>=3.1.1  # Threading and concurrency utilities
+threading>=3.0          # Threading support
+json>=2.0               # JSON serialization
+datetime>=4.0           # Date and time utilities
+pathlib>=1.0            # Path manipulation
+logging>=0.5            # Logging framework
+tarfile>=3.0            # Archive file handling
+gzip>=1.0               # Compression utilities
+hashlib>=3.0            # Cryptographic hashing
+os>=1.0                 # Operating system interface
+sys>=1.0                # System-specific parameters
+time>=1.0               # Time-related functions
+functools>=1.0          # Higher-order functions
+typing>=3.7             # Type hints
+dataclasses>=3.7        # Data classes
 ```
 
-### Available Operations
+## License
 
-#### 1. Single Command
-```python
-from core.threaded_operations import run_command_on_servers
-
-results = run_command_on_servers(
-    servers=servers,
-    command="ls -la /tmp",
-    max_workers=10,
-    show_progress=True
-)
-```
-
-#### 2. Multiple Commands
-```python
-from core.threaded_operations import run_commands_on_servers
-
-results = run_commands_on_servers(
-    servers=servers,
-    commands=["whoami", "pwd", "uname -a"],
-    max_workers=10,
-    show_progress=True
-)
-```
-
-#### 3. File Upload
-```python
-from core.threaded_operations import upload_file_to_servers
-
-results = upload_file_to_servers(
-    servers=servers,
-    local_path="/local/file.txt",
-    remote_path="/remote/file.txt",
-    compress=True,
-    max_workers=10,
-    show_progress=True
-)
-```
-
-#### 4. File Download
-```python
-from core.threaded_operations import download_file_from_servers
-
-results = download_file_from_servers(
-    servers=servers,
-    remote_path="/remote/file.txt",
-    local_path="/local/file.txt",
-    decompress=True,
-    max_workers=10,
-    show_progress=True
-)
-```
-
-#### 5. Custom Operations
-```python
-from core.threaded_operations import custom_operation_on_servers
-
-def my_custom_operation(conn, arg1, arg2, **kwargs):
-    # Do something with the connection
-    result = conn.exec_command(f"echo {arg1} {arg2}")
-    return {"custom_result": result}
-
-results = custom_operation_on_servers(
-    servers=servers,
-    operation_func=my_custom_operation,
-    operation_args=("hello", "world"),
-    operation_kwargs={"key": "value"},
-    max_workers=10,
-    show_progress=True
-)
-```
-
-### Advanced Usage with ThreadedOperations Class
-
-```python
-from core.threaded_operations import ThreadedOperations
-
-# Create operations manager
-ops = ThreadedOperations(max_workers=20)
-
-# Run operations with custom descriptions
-results = ops.run_command_on_servers(
-    servers=servers,
-    command="whoami",
-    show_progress=True,
-    description="Checking user identity"
-)
-
-# Chain multiple operations
-if results.successful:
-    successful_servers = results.get_successful_servers()
-    
-    # Run follow-up operation only on successful servers
-    follow_up_results = ops.run_commands_on_servers(
-        servers=successful_servers,
-        commands=["pwd", "ls -la"],
-        show_progress=True,
-        description="Gathering system info"
-    )
-```
-
-### CLI Usage
-
-Use the provided CLI script for quick threaded operations:
-
-```bash
-# Run command on specific servers
-python cli_threaded.py --command "whoami" --servers server01,server02
-
-# Run command on all servers
-python cli_threaded.py --command "ls -la" --servers all --workers 20
-
-# Run multiple commands
-python cli_threaded.py --commands "whoami,pwd,uname -a" --servers all
-
-# Upload file to all servers
-python cli_threaded.py --upload /local/file.txt /remote/file.txt --servers all --compress
-
-# Download file from all servers
-python cli_threaded.py --download /remote/file.txt /local/file.txt --servers all --decompress
-```
-
-### Results and Statistics
-
-All threaded operations return a `BatchResult` object with:
-
-- **Statistics**: Total servers, successful/failed counts, success rate, execution time
-- **Detailed Results**: Individual results for each server with output and errors
-- **Server Lists**: Easy access to successful and failed server lists for chaining operations
-
-```python
-# Access detailed statistics
-print(f"Success rate: {results.success_rate:.1f}%")
-print(f"Execution time: {results.execution_time:.2f} seconds")
-
-# Access individual results
-for result in results.successful:
-    print(f"{result.server.hostname}: {result.result['output']}")
-
-for result in results.failed:
-    print(f"{result.server.hostname}: {result.error}")
-
-# Chain operations
-successful_servers = results.get_successful_servers()
-failed_servers = results.get_failed_servers()
-
-# Run different operations on each group
-if successful_servers:
-    # Continue with successful servers
-    pass
-
-if failed_servers:
-    # Retry or alternative approach for failed servers
-    pass
-```
-
-### Progress Bar Features
-
-- **Real-time progress**: Shows completed/total servers
-- **Live statistics**: Displays current success/failure counts
-- **Customizable**: Can be disabled with `show_progress=False`
-- **Descriptive**: Custom descriptions for different operations
-
-### Threading Configuration
-
-- **Worker count**: Control concurrency with `max_workers` parameter
-- **Connection pooling**: Each thread manages its own connections
-- **Error isolation**: Failures in one thread don't affect others
-- **Resource management**: Automatic cleanup of connections
-
----
 MIT License 
