@@ -30,7 +30,6 @@ jobs:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         pytest 
     - name: Integration Test (Real Servers)
-      if: ${{ secrets.TEST_LINUX_HOST && secrets.TEST_WINDOWS_HOST }}
       env:
         TEST_LINUX_HOST: ${{ secrets.TEST_LINUX_HOST }}
         TEST_LINUX_USER: ${{ secrets.TEST_LINUX_USER }}
