@@ -2,6 +2,9 @@ from connectors.impacket_wrapper import ImpacketWrapper
 from connectors.smb_connector import SMBConnector
 from connectors.ssh_connector import SSHConnector
 from utils.logger import get_logger
+from utils.constants import (
+    DEFAULT_SSH_PORT, DEFAULT_TIMEOUT
+)
 
 logger = get_logger("tunnel_builder")
 
@@ -15,11 +18,11 @@ class TunnelBuilder:
         if method == "ssh":
             conn = SSHConnector(
                 host=server.ip,
-                port=server.port,
+                port=server.port or DEFAULT_SSH_PORT,
                 user=server.user,
                 password=server.password,
                 ssh_key=server.ssh_key,
-                timeout=config.get("timeout", 10),
+                timeout=config.get("timeout", DEFAULT_TIMEOUT),
                 client_id=config.get("client_id"),
             )
         elif method == "smb":
@@ -27,7 +30,7 @@ class TunnelBuilder:
                 host=server.ip,
                 user=server.user,
                 password=server.password,
-                timeout=config.get("timeout", 10),
+                timeout=config.get("timeout", DEFAULT_TIMEOUT),
                 client_id=config.get("client_id"),
             )
         elif method == "custom":
@@ -35,7 +38,7 @@ class TunnelBuilder:
                 host=server.ip,
                 user=server.user,
                 password=server.password,
-                timeout=config.get("timeout", 10),
+                timeout=config.get("timeout", DEFAULT_TIMEOUT),
                 client_id=config.get("client_id"),
             )
         elif method == "ftp":
