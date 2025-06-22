@@ -5,16 +5,19 @@ import tempfile
 
 from utils.logger import get_logger
 from utils.md5sum import md5sum
+from utils.constants import (
+    DEFAULT_COMPRESSION, SUPPORTED_COMPRESSION_FORMATS
+)
 
 logger = get_logger("file_transfer")
 
 
-def upload_file(conn, local_path, remote_path, compress=False):
+def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION):
     path_to_send = local_path
     if compress:
         temp_dir = tempfile.mkdtemp()
         tar_path = os.path.join(
-            temp_dir, os.path.basename(local_path) + ".tar.gz"
+            temp_dir, os.path.basename(local_path) + SUPPORTED_COMPRESSION_FORMATS[0]
         )
         with tarfile.open(tar_path, "w:gz") as tar:
             tar.add(local_path, arcname=os.path.basename(local_path))
@@ -31,7 +34,7 @@ def upload_file(conn, local_path, remote_path, compress=False):
     return True
 
 
-def download_file(conn, remote_path, local_path, decompress=False):
+def download_file(conn, remote_path, local_path, decompress=DEFAULT_COMPRESSION):
     logger.info(f"Downloading {remote_path} to {local_path}")
     # ... download file ...
     local_md5 = md5sum(local_path)
@@ -46,23 +49,23 @@ def download_file(conn, remote_path, local_path, decompress=False):
     return True
 
 
-def upload_files(conn, local_paths, remote_dir, compress=True):
+def upload_files(conn, local_paths, remote_dir, compress=DEFAULT_COMPRESSION):
     temp_dir = tempfile.mkdtemp()
-    tar_path = os.path.join(temp_dir, "upload_bundle.tar.gz")
+    tar_path = os.path.join(temp_dir, "upload_bundle" + SUPPORTED_COMPRESSION_FORMATS[0])
     with tarfile.open(tar_path, "w:gz") as tar:
         for path in local_paths:
             tar.add(path, arcname=os.path.basename(path))
     logger.info(f"Compressed files {local_paths} to {tar_path}")
-    remote_tar = os.path.join(remote_dir, "upload_bundle.tar.gz")
+    remote_tar = os.path.join(remote_dir, "upload_bundle" + SUPPORTED_COMPRESSION_FORMATS[0])
     upload_file(conn, tar_path, remote_tar, compress=False)
     # Optionally, remote extraction logic can be added here
     shutil.rmtree(temp_dir)
     return True
 
 
-def download_files(conn, remote_paths, local_dir, compress=True):
+def download_files(conn, remote_paths, local_dir, compress=DEFAULT_COMPRESSION):
     temp_dir = tempfile.mkdtemp()
-    tar_path = os.path.join(temp_dir, "download_bundle.tar.gz")
+    tar_path = os.path.join(temp_dir, "download_bundle" + SUPPORTED_COMPRESSION_FORMATS[0])
     # On remote: tar the files into tar_path, then download
     # Here, we just simulate download
     logger.info(f"Requesting remote tar of files: {remote_paths}")
