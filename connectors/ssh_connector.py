@@ -2,6 +2,7 @@ import paramiko
 
 from connectors.base_connector import BaseConnector
 from utils.logger import get_logger
+from utils.constants import DEFAULT_SSH_PORT, DEFAULT_TIMEOUT
 
 logger = get_logger("ssh_connector")
 
@@ -10,11 +11,11 @@ class SSHConnector(BaseConnector):
     def __init__(
         self,
         host,
-        port,
-        user,
+        port=DEFAULT_SSH_PORT,
+        user=None,
         password=None,
         ssh_key=None,
-        timeout=10,
+        timeout=DEFAULT_TIMEOUT,
         client_id=None,
         **kwargs,
     ):
@@ -79,7 +80,7 @@ class SSHConnector(BaseConnector):
         return out, err
 
     @classmethod
-    def connect_cls(cls, host, port=22, user=None, password=None, ssh_key=None, timeout=10, client_id=None, **kwargs):
+    def connect_cls(cls, host, port=DEFAULT_SSH_PORT, user=None, password=None, ssh_key=None, timeout=DEFAULT_TIMEOUT, client_id=None, **kwargs):
         instance = cls(host, port, user, password, ssh_key, timeout, client_id, **kwargs)
         instance.connect()
         return instance

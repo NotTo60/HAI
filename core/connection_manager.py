@@ -1,5 +1,6 @@
 from core.tunnel_builder import TunnelBuilder
 from utils.logger import get_logger
+from utils.constants import ERROR_CODES
 
 logger = get_logger("connection_manager")
 
@@ -18,4 +19,4 @@ def connect_with_fallback(server):
         except Exception as e:
             logger.warning(f"Tunnel failed: {route.name} — {e}")
             route.active = False
-    raise Exception(f"All tunnel routes failed for server {server.hostname}")
+    raise Exception(f"All tunnel routes failed for server {server.hostname}", ERROR_CODES["CONNECTION_FAILED"])
