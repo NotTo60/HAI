@@ -68,11 +68,17 @@ jobs:
           name: linux_ssh_key
 
       - name: Test SSH to Linux
+        working-directory: ${{ github.workspace }}
         run: bash scripts/test_ssh.sh ${{ needs.provision.outputs.linux_ip }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Test SMB to Windows
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: scripts/test_smb.ps1 -TargetIP ${{ needs.provision.outputs.windows_ip }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
