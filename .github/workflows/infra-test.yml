@@ -18,15 +18,15 @@ jobs:
 
       - name: Init and Apply
         id: tf
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           cd terraform
           terraform init
           terraform apply -auto-approve
           echo "linux_ip=$(terraform output -raw linux_ip)" >> $GITHUB_OUTPUT
           echo "windows_ip=$(terraform output -raw windows_ip)" >> $GITHUB_OUTPUT
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Upload SSH key for later jobs
         uses: actions/upload-artifact@v4
@@ -57,7 +57,7 @@ jobs:
           done
 
   run_tests:
-    needs: wait_for_ready
+    needs: [wait_for_ready, provision]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,9 +81,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Destroy Infra
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           cd terraform
-          terraform destroy -auto-approve 
+          terraform destroy -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
