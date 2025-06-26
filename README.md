@@ -19,11 +19,36 @@ A Python-based hybrid connection system for secure, resilient, and flexible remo
 - `TEST_WINDOWS_HOST`, `TEST_WINDOWS_USER`, `TEST_WINDOWS_PASS`, `TEST_WINDOWS_PORT`
 
 ### Setup Secrets Easily
-Use the provided script to set all required secrets:
+Use the provided script to set all required secrets **before your first push** (so CI/CD can provision and test):
+
 ```sh
-bash setup_gh_secrets.sh
+#!/bin/bash
+# AWS credentials for Terraform provisioning
+# Replace with your actual AWS credentials
+# You can generate these from the AWS IAM console
+
+gh secret set AWS_ACCESS_KEY_ID --body "<your_aws_access_key_id>" --repo <youruser>/<yourrepo>
+gh secret set AWS_SECRET_ACCESS_KEY --body "<your_aws_secret_access_key>" --repo <youruser>/<yourrepo>
+
+# Linux Test Server (SSH)
+gh secret set TEST_LINUX_HOST --body "linux" --repo <youruser>/<yourrepo>
+gh secret set TEST_LINUX_USER --body "<your_user>" --repo <youruser>/<yourrepo>
+gh secret set TEST_LINUX_PASS --body "<your_password>" --repo <youruser>/<yourrepo>
+gh secret set TEST_LINUX_PORT --body "22" --repo <youruser>/<yourrepo>
+
+# Windows Test Server (SMB & WMI/Impacket)
+gh secret set TEST_WINDOWS_HOST --body "windows" --repo <youruser>/<yourrepo>
+gh secret set TEST_WINDOWS_USER --body "<your_user>" --repo <youruser>/<yourrepo>
+gh secret set TEST_WINDOWS_PASS --body "<your_password>" --repo <youruser>/<yourrepo>
+gh secret set TEST_WINDOWS_PORT --body "445" --repo <youruser>/<yourrepo>
+
+# If you want to use the SSH private key as a secret (optional, not required for current workflow)
+# gh secret set LINUX_SSH_KEY --body "$(cat terraform/id_rsa)" --repo <youruser>/<yourrepo>
+
+echo "AWS and test server secrets have been set for the HAI repository!"
 ```
-Edit the script to match your actual values before running.
+
+**Note:** You must set these secrets before pushing to `main` to ensure the CI/CD workflow can provision infrastructure and run integration tests successfully.
 
 ### Integration Test Details
 - The test suite (`tests/test_integration_real_servers.py`) connects to the provisioned VMs and:
