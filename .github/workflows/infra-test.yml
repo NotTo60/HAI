@@ -75,6 +75,7 @@ jobs:
         run: scripts/test_smb.ps1 -TargetIP ${{ needs.provision.outputs.windows_ip }}
 
       - name: Run tests
+        working-directory: ${{ github.workspace }}
         run: |
           export PYTHONPATH=$PYTHONPATH:$(pwd)
           pytest tests/test_integration_real_servers.py
