@@ -82,9 +82,9 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
-        run: |
-          export PYTHONPATH=$PYTHONPATH:$(pwd)
-          pytest tests/test_integration_real_servers.py
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: pytest tests/test_integration_real_servers.py
 
       - name: Upload test logs
         if: always()
@@ -105,4 +105,4 @@ jobs:
           terraform destroy -auto-approve
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
