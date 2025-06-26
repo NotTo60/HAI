@@ -9,6 +9,7 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "main" {
   vpc_id     = aws_vpc.main.id
   cidr_block = "10.0.1.0/24"
+  map_public_ip_on_launch = true
 }
 
 resource "aws_security_group" "main" {
@@ -57,6 +58,7 @@ resource "aws_instance" "linux" {
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
+  associate_public_ip_address = true
 
   tags = {
     Name = "hai-linux-ci"
@@ -69,6 +71,7 @@ resource "aws_instance" "windows" {
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
+  associate_public_ip_address = true
 
   tags = {
     Name = "hai-windows-ci"
