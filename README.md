@@ -2,6 +2,39 @@
 
 A Python-based hybrid connection system for secure, resilient, and flexible remote access to diverse servers using SSH, SMB, Impacket, and more. Supports multi-hop tunnels, fallback logic, file transfer (with MD5 and compression), dynamic iPython magics, modular connectors, **enhanced logging**, **state management**, **threaded operations**, and **centralized constants management**.
 
+---
+
+## 🚀 Real Infrastructure CI/CD & Integration Testing
+
+### How it Works
+- On every push to `main`, GitHub Actions:
+  1. Provisions a Linux and Windows VM in AWS using Terraform
+  2. Waits for the VMs to be ready (SSH, SMB, WinRM)
+  3. Runs real integration tests (SSH, SMB, WMI/Impacket: command, upload, download)
+  4. Tears down the infrastructure
+
+### Required GitHub Secrets
+- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` (for Terraform)
+- `TEST_LINUX_HOST`, `TEST_LINUX_USER`, `TEST_LINUX_PASS`, `TEST_LINUX_PORT`
+- `TEST_WINDOWS_HOST`, `TEST_WINDOWS_USER`, `TEST_WINDOWS_PASS`, `TEST_WINDOWS_PORT`
+
+### Setup Secrets Easily
+Use the provided script to set all required secrets:
+```sh
+bash setup_gh_secrets.sh
+```
+Edit the script to match your actual values before running.
+
+### Integration Test Details
+- The test suite (`tests/test_integration_real_servers.py`) connects to the provisioned VMs and:
+  - Runs a command (whoami)
+  - Uploads a file
+  - Downloads the file and checks its content
+  - Tests all supported connection methods (SSH, SMB, WMI/Impacket)
+- No mocks: all tests are real, on real infrastructure.
+
+---
+
 ## Features
 - Modular connectors: SSH, SMB, Impacket (NTLM), and easily extensible
 - Multi-hop tunnel routing and automatic fallback
@@ -14,6 +47,12 @@ A Python-based hybrid connection system for secure, resilient, and flexible remo
 - iPython magics for interactive route management (`magics/` folder)
 - Logging, validation, and modular config
 
+## Requirements
+- Python 3.8+
+- [Terraform](https://www.terraform.io/) (for CI/CD infra)
+- [AWS CLI](https://aws.amazon.com/cli/) (for local infra management)
+- See `requirements.txt` for Python dependencies
+
 ## Directory Structure
 - `core/` — Main logic: connection manager, file transfer, command runner, server schema, **threaded operations**
 - `connectors/` — Protocol connectors: SSH, SMB, Impacket, and base class
@@ -21,10 +60,23 @@ A Python-based hybrid connection system for secure, resilient, and flexible remo
 - `utils/` — Utilities: **enhanced logging**, **state management**, **constants**, MD5
 - `config/` — Configuration files (e.g., SSH/Paramiko)
 - `servers/` — Server inventory/configuration (JSON)
-- `tests/` — Fully mocked test suite with comprehensive coverage
+- `tests/` — Real integration test suite (no mocks)
 - `examples/` — Example scripts including threaded operations demo
 - `logs/` — **Per-server and system logs with rotation**
 - `state/` — **Saved operation states for resuming work**
+- `terraform/` — AWS infrastructure as code for CI/CD
+
+---
+
+## Testing
+- **All tests are real integration tests**: No mocks, no local simulation.
+- **CI/CD workflow** provisions real Linux and Windows VMs in AWS, runs tests, and destroys infra.
+- **Test runner:**
+```sh
+pytest
+```
+
+---
 
 ## Quick Start
 
@@ -446,14 +498,6 @@ conn.disconnect()
 - Define multiple `tunnel_routes` per server
 - Automatic fallback: tries each active route in order
 - Each route can have multiple hops (jump hosts, VPNs, etc.)
-
-## Testing
-- **Unit tests are fully mocked**: No real network or file transfer is performed. File transfer tests create and decompress real tar.gz files using Python's tarfile module, so the compression/decompression logic is exercised.
-- **Comprehensive test coverage**: Tests cover all new features including enhanced logging, state management, constants integration, and threaded operations.
-- **Test runner:**
-```sh
-pytest
-```
 
 ## Improved Organization and Maintainability
 
