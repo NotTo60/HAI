@@ -1,0 +1,89 @@
+name: Provision Infra and Run Tests
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    outputs:
+      linux_ip: ${{ steps.tf.outputs.linux_ip }}
+      windows_ip: ${{ steps.tf.outputs.windows_ip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Init and Apply
+        id: tf
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          cd terraform
+          terraform init
+          terraform apply -auto-approve
+          echo "linux_ip=$(terraform output -raw linux_ip)" >> $GITHUB_OUTPUT
+          echo "windows_ip=$(terraform output -raw windows_ip)" >> $GITHUB_OUTPUT
+
+      - name: Upload SSH key for later jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux_ssh_key
+          path: terraform/id_rsa
+
+  wait_for_ready:
+    needs: provision
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download SSH key
+        uses: actions/download-artifact@v4
+        with:
+          name: linux_ssh_key
+
+      - name: Wait for Linux SSH
+        run: |
+          chmod 600 id_rsa
+          until ssh -o StrictHostKeyChecking=no -i id_rsa ubuntu@${{ needs.provision.outputs.linux_ip }} "echo ready"; do
+            echo "Waiting for Linux SSH..."; sleep 10;
+          done
+
+      - name: Wait for Windows RDP/SMB
+        run: |
+          until nc -z -v ${{ needs.provision.outputs.windows_ip }} 445; do
+            echo "Waiting for SMB..."; sleep 10;
+          done
+
+  run_tests:
+    needs: wait_for_ready
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SSH key
+        uses: actions/download-artifact@v4
+        with:
+          name: linux_ssh_key
+
+      - name: Test SSH to Linux
+        run: bash scripts/test_ssh.sh ${{ needs.provision.outputs.linux_ip }}
+
+      - name: Test SMB to Windows
+        shell: pwsh
+        run: scripts/test_smb.ps1 -TargetIP ${{ needs.provision.outputs.windows_ip }}
+
+  cleanup:
+    needs: run_tests
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Destroy Infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          cd terraform
+          terraform destroy -auto-approve 
