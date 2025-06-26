@@ -101,4 +101,3 @@ setup_gh_secrets.sh
 
 # Terraform SSH keys
 terraform/id_rsa
-terraform/id_rsa.pub
