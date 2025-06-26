@@ -2,7 +2,7 @@ name: Provision Infra and Run Tests
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
 
 jobs:
   provision:
@@ -73,6 +73,18 @@ jobs:
       - name: Test SMB to Windows
         shell: pwsh
         run: scripts/test_smb.ps1 -TargetIP ${{ needs.provision.outputs.windows_ip }}
+
+      - name: Run tests
+        run: |
+          export PYTHONPATH=$PYTHONPATH:$(pwd)
+          pytest tests/test_integration_real_servers.py
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: logs/
 
   cleanup:
     needs: run_tests
