@@ -19,48 +19,6 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: "Clean up old VPCs (dangerous: deletes all VPCs in region)"
-        run: |
-          echo "Starting VPC cleanup..."
-          echo "Current VPCs:"
-          aws ec2 describe-vpcs --query "Vpcs[].{VpcId:VpcId,State:State}" --output table
-          
-          for vpc in $(aws ec2 describe-vpcs --query "Vpcs[].VpcId" --output text); do
-            echo "Attempting to delete VPC: $vpc"
-            
-            # Delete all dependencies first
-            echo "  - Deleting internet gateways..."
-            for igw in $(aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$vpc" --query "InternetGateways[].InternetGatewayId" --output text); do
-              aws ec2 detach-internet-gateway --internet-gateway-id $igw --vpc-id $vpc || true
-              aws ec2 delete-internet-gateway --internet-gateway-id $igw || true
-            done
-            
-            echo "  - Deleting route tables..."
-            for rt in $(aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$vpc" --query "RouteTables[?Associations[0].Main!=true].RouteTableId" --output text); do
-              aws ec2 delete-route-table --route-table-id $rt || true
-            done
-            
-            echo "  - Deleting subnets..."
-            for subnet in $(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$vpc" --query "Subnets[].SubnetId" --output text); do
-              aws ec2 delete-subnet --subnet-id $subnet || true
-            done
-            
-            echo "  - Deleting security groups..."
-            for sg in $(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$vpc" --query "SecurityGroups[?GroupName!='default'].GroupId" --output text); do
-              aws ec2 delete-security-group --group-id $sg || true
-            done
-            
-            echo "  - Deleting VPC..."
-            aws ec2 delete-vpc --vpc-id $vpc || echo "Failed to delete VPC $vpc"
-          done
-          
-          echo "VPC cleanup completed. Remaining VPCs:"
-          aws ec2 describe-vpcs --query "Vpcs[].{VpcId:VpcId,State:State}" --output table
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
-
       - name: Remove existing AWS key pair if present
         run: |
           aws ec2 delete-key-pair --key-name hai-ci-key || true
