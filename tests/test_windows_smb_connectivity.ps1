@@ -23,13 +23,12 @@ try {
         exit 1
     }
     
-    # Test 2: Try to access SMB shares using modern approach
+    $shareAccessible = $false
+
+    # Test 2: Try to access the TestShare we created
     Write-Host "Testing SMB share access..."
-    
-    # Try to access the TestShare we created
     $testPath = "\\$TargetIP\TestShare"
     Write-Host "Attempting to access: $testPath"
-    
     if (Test-Path $testPath -ErrorAction SilentlyContinue) {
         Write-Host "TestShare is accessible"
         try {
@@ -38,6 +37,7 @@ try {
         } catch {
             Write-Host "Could not list TestShare contents: $_"
         }
+        $shareAccessible = $true
     } else {
         Write-Host "TestShare is not accessible, trying alternative methods..."
         
@@ -60,12 +60,19 @@ try {
         $cSharePath = "\\$TargetIP\C$"
         if (Test-Path $cSharePath -ErrorAction SilentlyContinue) {
             Write-Host "C$ share is accessible"
+            $shareAccessible = $true
         } else {
             Write-Host "C$ share is not accessible"
         }
     }
     
-    Write-Host "WINDOWS SMB CONNECTIVITY OK"
+    if ($shareAccessible) {
+        Write-Host "WINDOWS SMB CONNECTIVITY OK"
+        exit 0
+    } else {
+        Write-Host "ERROR: No accessible SMB shares found. SMB may not be working as expected."
+        exit 1
+    }
     
 } catch {
     Write-Host "SMB connection failed: $_"
