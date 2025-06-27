@@ -98,5 +98,3 @@ dmypy.json
 
 # GitHub secrets setup script (contains sensitive data)
 setup_gh_secrets.sh
-
-# Terraform SSH keys
