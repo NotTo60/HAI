@@ -205,7 +205,7 @@ resource "aws_key_pair" "main" {
 
 resource "aws_key_pair" "ec2_user" {
   key_name   = "hai-ci-ec2-user-key"
-  public_key = file("${path.module}/id_rsa.pub")
+  public_key = file("${path.module}/ec2_user_rsa.pub")
   
   tags = {
     ManagedBy = "hai-ci-workflow"
