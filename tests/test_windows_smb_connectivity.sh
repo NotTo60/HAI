@@ -30,81 +30,51 @@ if [ $port_open -ne 1 ]; then
     exit 1
 fi
 
-# Test 2: Try to enumerate shares using smbclient if available
-echo "Testing SMB share enumeration..."
-SHARE_ACCESSIBLE=false
-
-# Check if smbclient is available
-if command -v smbclient >/dev/null 2>&1; then
-    echo "Using smbclient to test SMB connectivity..."
-    
-    # Try to list shares anonymously
-    if smbclient -L "//$TARGET_IP" -U "" -N 2>/dev/null | grep -q "TestShare\|C\$"; then
-        echo "Successfully enumerated shares with smbclient"
-        SHARE_ACCESSIBLE=true
+# Install smbclient if not available
+if ! command -v smbclient >/dev/null 2>&1; then
+    echo "Installing smbclient..."
+    if command -v apt-get >/dev/null 2>&1; then
+        # Ubuntu/Debian
+        sudo apt-get update -qq
+        sudo apt-get install -y samba-client
+    elif command -v yum >/dev/null 2>&1; then
+        # CentOS/RHEL/Amazon Linux
+        sudo yum install -y samba-client
+    elif command -v dnf >/dev/null 2>&1; then
+        # Fedora
+        sudo dnf install -y samba-client
+    elif command -v brew >/dev/null 2>&1; then
+        # macOS
+        brew install samba
     else
-        echo "smbclient enumeration failed, trying alternative methods..."
-    fi
-else
-    echo "smbclient not available, trying alternative methods..."
-fi
-
-# Test 3: Try using nmap if available
-if [ "$SHARE_ACCESSIBLE" = false ] && command -v nmap >/dev/null 2>&1; then
-    echo "Using nmap to scan for SMB services..."
-    if nmap -p 445 --script smb-enum-shares "$TARGET_IP" 2>/dev/null | grep -q "TestShare\|C\$"; then
-        echo "nmap SMB scan successful"
-        SHARE_ACCESSIBLE=true
-    else
-        echo "nmap SMB scan failed"
+        echo "ERROR: Cannot install smbclient - no supported package manager found"
+        exit 1
     fi
 fi
 
-# Test 4: Try using telnet to test SMB port
-if [ "$SHARE_ACCESSIBLE" = false ]; then
-    echo "Testing SMB port with telnet..."
-    if timeout 5 bash -c "echo 'exit' | telnet $TARGET_IP 445" 2>/dev/null | grep -q "Connected"; then
-        echo "SMB port is accessible via telnet"
-        SHARE_ACCESSIBLE=true
-    else
-        echo "SMB port not accessible via telnet"
-    fi
-fi
+# Test SMB connectivity using smbclient
+echo "Testing SMB connectivity with smbclient..."
 
-# Test 5: Try using curl if available (for HTTP-like testing)
-if [ "$SHARE_ACCESSIBLE" = false ] && command -v curl >/dev/null 2>&1; then
-    echo "Testing with curl..."
-    if curl --connect-timeout 5 "smb://$TARGET_IP" 2>/dev/null; then
-        echo "curl SMB test successful"
-        SHARE_ACCESSIBLE=true
-    else
-        echo "curl SMB test failed"
-    fi
-fi
-
-# Final result
-if [ "$SHARE_ACCESSIBLE" = true ]; then
+# Try to list shares anonymously
+if smbclient -L "//$TARGET_IP" -U "" -N 2>/dev/null | grep -q "TestShare\|C\$"; then
+    echo "✅ SMB connectivity successful - shares found"
     echo "WINDOWS SMB CONNECTIVITY OK"
     exit 0
 else
-    echo "ERROR: No accessible SMB shares found. SMB may not be working as expected."
+    echo "❌ SMB connectivity failed - no shares found"
     echo ""
     echo "Debugging information:"
     echo "- Target IP: $TARGET_IP"
     echo "- Port 445: Reachable"
-    echo "- Share enumeration: Failed"
+    echo "- SMB enumeration: Failed"
+    echo ""
+    echo "Trying to list all available shares..."
+    smbclient -L "//$TARGET_IP" -U "" -N 2>&1 || echo "Failed to enumerate shares"
     echo ""
     echo "Possible issues:"
     echo "1. Windows Firewall blocking SMB"
     echo "2. SMB service not running"
-    echo "3. Network connectivity issues"
-    echo "4. Authentication problems"
-    echo "5. SMB version compatibility issues"
-    echo ""
-    echo "Available tools:"
-    echo "- smbclient: $(command -v smbclient >/dev/null 2>&1 && echo "Available" || echo "Not available")"
-    echo "- nmap: $(command -v nmap >/dev/null 2>&1 && echo "Available" || echo "Not available")"
-    echo "- telnet: $(command -v telnet >/dev/null 2>&1 && echo "Available" || echo "Not available")"
-    echo "- curl: $(command -v curl >/dev/null 2>&1 && echo "Available" || echo "Not available")"
+    echo "3. Authentication required (anonymous access disabled)"
+    echo "4. SMB version compatibility issues"
     exit 1
 fi 
