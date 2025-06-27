@@ -100,4 +100,3 @@ dmypy.json
 setup_gh_secrets.sh
 
 # Terraform SSH keys
-terraform/id_rsa
