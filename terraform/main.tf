@@ -300,10 +300,7 @@ resource "aws_instance" "windows" {
   vpc_security_group_ids = [aws_security_group.main.id]
   associate_public_ip_address = true
   
-  # Ensure this is recognized as a Windows instance
-  get_password_data = true
-  
-  # User data to set Administrator password and configure SMB
+  # User data to set Administrator password and configure SMB (simplified)
   user_data_base64 = base64encode(<<-EOF
     <powershell>
     # Set Administrator password
@@ -314,24 +311,9 @@ resource "aws_instance" "windows" {
     Enable-PSRemoting -Force
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
     
-    # Configure SMB for file sharing
-    Write-Host "Installing SMB features..."
-    Install-WindowsFeature -Name FS-SMB1 -IncludeAllSubFeature -IncludeManagementTools
-    Install-WindowsFeature -Name FS-SMB2 -IncludeAllSubFeature -IncludeManagementTools
-    
-    # Enable SMB services
-    Write-Host "Starting SMB services..."
-    Start-Service -Name LanmanServer
-    Set-Service -Name LanmanServer -StartupType Automatic
-    Start-Service -Name LanmanWorkstation
-    Set-Service -Name LanmanWorkstation -StartupType Automatic
-    
-    # Configure Windows Firewall for SMB
-    Write-Host "Configuring firewall for SMB..."
+    # Configure Windows Firewall for SMB and RDP
+    Write-Host "Configuring firewall..."
     New-NetFirewallRule -DisplayName "Allow SMB Inbound" -Direction Inbound -LocalPort 445 -Protocol TCP -Action Allow -Profile Any
-    New-NetFirewallRule -DisplayName "Allow SMB Outbound" -Direction Outbound -LocalPort 445 -Protocol TCP -Action Allow -Profile Any
-    
-    # Also allow RDP (port 3389) through firewall
     New-NetFirewallRule -DisplayName "Allow RDP Inbound" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any
     
     # Create a test share for SMB testing
@@ -339,12 +321,7 @@ resource "aws_instance" "windows" {
     New-Item -ItemType Directory -Path "C:\TestShare" -Force
     New-SmbShare -Name "TestShare" -Path "C:\TestShare" -FullAccess "Everyone"
     
-    # Verify SMB is working
-    Write-Host "Verifying SMB configuration..."
-    Get-SmbShare
-    Get-NetFirewallRule | Where-Object {$_.DisplayName -like "*SMB*"}
-    
-    Write-Host "Windows instance configured successfully for SMB"
+    Write-Host "Windows instance configured successfully"
     </powershell>
     EOF
   )
