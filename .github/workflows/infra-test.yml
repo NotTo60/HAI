@@ -117,9 +117,11 @@ jobs:
       - name: Run tests
         working-directory: ${{ github.workspace }}
         env:
+          # Linux host IP comes from Terraform outputs, not secrets
           TEST_LINUX_HOST: ${{ needs.provision.outputs.linux_ip }}
           TEST_LINUX_USER: ubuntu
           TEST_LINUX_SSH_KEY: ${{ github.workspace }}/id_rsa
+          # Windows credentials still need secrets
           TEST_WINDOWS_HOST: ${{ needs.provision.outputs.windows_ip }}
           TEST_WINDOWS_USER: Administrator
           TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}

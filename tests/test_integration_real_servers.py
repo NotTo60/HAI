@@ -36,7 +36,7 @@ def build_server_entry(prefix, method, os_type):
     )
 
 required_envs = [
-    "TEST_LINUX_HOST", "TEST_LINUX_USER", "TEST_LINUX_SSH_KEY",
+    "TEST_LINUX_USER", "TEST_LINUX_SSH_KEY",  # IP comes from CI workflow, not secrets
     "TEST_WINDOWS_HOST", "TEST_WINDOWS_USER", "TEST_WINDOWS_PASS"
 ]
 
