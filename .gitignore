@@ -98,3 +98,13 @@ dmypy.json
 
 # GitHub secrets setup script (contains sensitive data)
 setup_gh_secrets.sh
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Virtual environments
+env/
+ENV/
