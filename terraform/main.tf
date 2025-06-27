@@ -195,7 +195,7 @@ resource "aws_security_group" "main" {
 
 resource "aws_key_pair" "main" {
   key_name   = "hai-ci-key"
-  public_key = file("${path.module}/id_rsa.pub")
+  public_key = file("${path.module}/ec2_user_rsa.pub")
   
   tags = {
     ManagedBy = "hai-ci-workflow"
@@ -220,6 +220,19 @@ resource "aws_instance" "linux" {
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.ec2_user.key_name
   associate_public_ip_address = true
+  
+  # Add user data to ensure the instance is properly configured
+  user_data = <<-EOF
+              #!/bin/bash
+              # Ensure the instance is properly configured
+              echo "Linux instance user data executed"
+              # Update system packages
+              yum update -y
+              # Install basic utilities
+              yum install -y curl wget git
+              echo "Linux instance configured successfully"
+              EOF
+  
   tags = {
     Name = "hai-linux-ci"
     ManagedBy = "hai-ci-workflow"
