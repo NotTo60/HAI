@@ -12,6 +12,14 @@ variable "windows_password" {
 # Get all VPCs to find an existing one
 data "aws_vpcs" "all" {}
 
+# Get existing subnets to check for conflicts
+data "aws_subnets" "all" {
+  filter {
+    name   = "vpc-id"
+    values = [local.existing_vpc_id]
+  }
+}
+
 # Use existing VPC if available, otherwise create a new one
 locals {
   existing_vpc_id = length(data.aws_vpcs.all.ids) > 0 ? data.aws_vpcs.all.ids[0] : null
@@ -33,10 +41,10 @@ locals {
   vpc_id = local.existing_vpc_id != null ? local.existing_vpc_id : aws_vpc.main[0].id
 }
 
-# Create subnet in the VPC
+# Create subnet in the VPC with a more unique CIDR to avoid conflicts
 resource "aws_subnet" "main" {
   vpc_id     = local.vpc_id
-  cidr_block = "10.0.1.0/24"
+  cidr_block = "10.0.100.0/24"  # Changed from 10.0.1.0/24 to avoid conflicts
   availability_zone = "us-east-1a"
   map_public_ip_on_launch = true
   
