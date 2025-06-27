@@ -233,7 +233,7 @@ resource "aws_instance" "linux" {
 }
 
 resource "aws_instance" "windows" {
-  ami           = "ami-0c2b8ca1dad447f8a" # Windows Server 2022 Base in us-east-1
+  ami           = "ami-0c1a7f89451184c8b" # User-specified Windows AMI in us-east-1
   instance_type = "t3.small"  # Better for Windows Server
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
