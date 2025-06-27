@@ -44,7 +44,7 @@ locals {
 # Create subnet in the VPC with a more unique CIDR to avoid conflicts
 resource "aws_subnet" "main" {
   vpc_id     = local.vpc_id
-  cidr_block = "10.0.100.0/24"  # Changed from 10.0.1.0/24 to avoid conflicts
+  cidr_block = "10.0.200.0/24"  # Changed from 10.0.100.0/24 to avoid conflicts
   availability_zone = "us-east-1a"
   map_public_ip_on_launch = true
   
