@@ -286,6 +286,26 @@ jobs:
         with:
           name: linux_ssh_key
 
+      - name: Test SSH to Linux
+        working-directory: ${{ github.workspace }}
+        run: bash tests/test_linux_ssh_connectivity.sh ${{ needs.provision.outputs.linux_ip }} ${{ needs.wait_for_ready.outputs.detected_username }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Test SMB to Windows
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ needs.provision.outputs.windows_ip }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Test SMB to Windows (Bash fallback)
+        if: failure()
+        working-directory: ${{ github.workspace }}
+        run: tests/test_windows_smb_connectivity.sh ${{ needs.provision.outputs.windows_ip }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
       - name: Run tests
         working-directory: ${{ github.workspace }}
         env:
