@@ -7,10 +7,12 @@ on:
 jobs:
   provision-infra:
     uses: ./.github/workflows/provision-infra.yml
+    secrets: inherit
 
   test-vns:
     needs: provision-infra
     uses: ./.github/workflows/test-vns.yml
+    secrets: inherit
     with:
       linux_ip: ${{ needs.provision-infra.outputs.linux_ip }}
       windows_ip: ${{ needs.provision-infra.outputs.windows_ip }}
@@ -19,6 +21,7 @@ jobs:
   test-code:
     needs: provision-infra
     uses: ./.github/workflows/test-code.yml
+    secrets: inherit
     with:
       linux_ip: ${{ needs.provision-infra.outputs.linux_ip }}
       windows_ip: ${{ needs.provision-infra.outputs.windows_ip }}
@@ -27,3 +30,4 @@ jobs:
   cleanup:
     needs: [provision-infra, test-vns, test-code]
     uses: ./.github/workflows/cleanup.yml
+    secrets: inherit

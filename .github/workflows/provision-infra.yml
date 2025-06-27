@@ -12,6 +12,11 @@ on:
       detected_username:
         description: "Detected Linux username"
         value: ${{ jobs.provision-infra.outputs.detected_username }}
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
 
 jobs:
   provision-infra:
@@ -23,6 +28,22 @@ jobs:
       detected_username: ${{ steps.detect_username.outputs.username }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Debug secrets availability
+        run: |
+          echo "=== SECRETS DEBUG ==="
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "✅ AWS_ACCESS_KEY_ID is available (length: ${#AWS_ACCESS_KEY_ID})"
+          else
+            echo "❌ AWS_ACCESS_KEY_ID is NOT available"
+          fi
+          
+          if [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "✅ AWS_SECRET_ACCESS_KEY is available (length: ${#AWS_SECRET_ACCESS_KEY})"
+          else
+            echo "❌ AWS_SECRET_ACCESS_KEY is NOT available"
+          fi
+          echo "=== END SECRETS DEBUG ==="
 
       - name: Ensure SSH key exists for Terraform
         run: |

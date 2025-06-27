@@ -2,6 +2,11 @@ name: Cleanup Infrastructure
 
 on:
   workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       force_cleanup:
