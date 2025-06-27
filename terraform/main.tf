@@ -193,16 +193,6 @@ resource "aws_security_group" "main" {
   }
 }
 
-resource "aws_key_pair" "main" {
-  key_name   = "hai-ci-key"
-  public_key = file("${path.module}/ec2_user_rsa.pub")
-  
-  tags = {
-    ManagedBy = "hai-ci-workflow"
-    Environment = "ci-testing"
-  }
-}
-
 resource "aws_key_pair" "ec2_user" {
   key_name   = "hai-ci-ec2-user-key"
   public_key = file("${path.module}/ec2_user_rsa.pub")
@@ -245,7 +235,6 @@ resource "aws_instance" "windows" {
   instance_type = "t3.micro"
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
-  key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
   
   # User data to set Administrator password
