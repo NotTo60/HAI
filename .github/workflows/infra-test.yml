@@ -28,7 +28,7 @@ jobs:
       detected_username: ${{ needs.provision-infra.outputs.detected_username }}
 
   cleanup:
-    needs: [provision-infra, test-vns]
+    needs: [provision-infra, test-vns, test-code]
     if: always()
     uses: ./.github/workflows/cleanup.yml
     secrets: inherit
