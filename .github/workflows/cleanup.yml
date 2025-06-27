@@ -23,12 +23,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug secrets availability
+        run: |
+          echo "=== SECRETS DEBUG ==="
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "✅ AWS_ACCESS_KEY_ID is available (length: ${#AWS_ACCESS_KEY_ID})"
+          else
+            echo "❌ AWS_ACCESS_KEY_ID is NOT available"
+          fi
+          
+          if [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "✅ AWS_SECRET_ACCESS_KEY is available (length: ${#AWS_SECRET_ACCESS_KEY})"
+          else
+            echo "❌ AWS_SECRET_ACCESS_KEY is NOT available"
+          fi
+          echo "=== END SECRETS DEBUG ==="
+
       - name: Setup AWS CLI
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
+      - name: Validate AWS credentials
+        run: |
+          echo "=== AWS CREDENTIALS VALIDATION ==="
+          echo "Testing AWS credentials..."
+          aws sts get-caller-identity
+          echo "✅ AWS credentials are valid!"
+          echo "=== END VALIDATION ==="
 
       - name: Get current workflow run ID
         id: workflow_run
