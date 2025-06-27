@@ -300,27 +300,35 @@ resource "aws_instance" "windows" {
   vpc_security_group_ids = [aws_security_group.main.id]
   associate_public_ip_address = true
   
-  # User data to set Administrator password and configure SMB (simplified)
+  # User data to set Administrator password and configure SMB (improved for accessibility)
   user_data_base64 = base64encode(<<-EOF
     <powershell>
     # Set Administrator password
     $password = ConvertTo-SecureString "${var.windows_password}" -AsPlainText -Force
     Set-LocalUser -Name "Administrator" -Password $password
-    
+
     # Enable WinRM for remote management
     Enable-PSRemoting -Force
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
-    
+
+    # Create the share folder and set NTFS permissions
+    $sharePath = "C:\TestShare"
+    New-Item -ItemType Directory -Path $sharePath -Force | Out-Null
+    # Grant 'Everyone' full control NTFS permissions
+    icacls $sharePath /grant Everyone:(OI)(CI)F /T
+
+    # Create the SMB share and grant 'Everyone' full access
+    if (-not (Get-SmbShare -Name "TestShare" -ErrorAction SilentlyContinue)) {
+      New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Everyone"
+    }
+
     # Configure Windows Firewall for SMB and RDP
-    Write-Host "Configuring firewall..."
     New-NetFirewallRule -DisplayName "Allow SMB Inbound" -Direction Inbound -LocalPort 445 -Protocol TCP -Action Allow -Profile Any
     New-NetFirewallRule -DisplayName "Allow RDP Inbound" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any
-    
-    # Create a test share for SMB testing
-    Write-Host "Creating test share..."
-    New-Item -ItemType Directory -Path "C:\TestShare" -Force
-    New-SmbShare -Name "TestShare" -Path "C:\TestShare" -FullAccess "Everyone"
-    
+
+    # (Optional) Disable SMB signing requirement for easier Linux access
+    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
+
     Write-Host "Windows instance configured successfully"
     </powershell>
     EOF
