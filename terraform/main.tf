@@ -7,6 +7,7 @@ variable "windows_password" {
   description = "Password for Windows Administrator user"
   type        = string
   sensitive   = true
+  default     = "TemporaryPassword123!"  # Default password if not provided
 }
 
 # Get all VPCs to find an existing one
@@ -25,6 +26,8 @@ resource "aws_vpc" "main" {
   
   tags = {
     Name = "hai-ci-vpc"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -75,14 +78,16 @@ locals {
     "10.0.210.0/24"
   ]
   
-  # Get existing CIDR blocks
-  existing_cidrs = [for subnet in data.aws_subnet.existing : subnet.cidr_block]
+  # Get existing CIDR blocks with error handling
+  existing_cidrs = try([
+    for subnet in data.aws_subnet.existing : subnet.cidr_block
+  ], [])
   
   # Find first available CIDR that doesn't conflict
-  available_cidr = [
+  available_cidr = try([
     for cidr in local.possible_cidrs : cidr
     if !contains(local.existing_cidrs, cidr)
-  ][0]
+  ][0], "10.0.250.0/24")  # Fallback CIDR if all others are taken
 }
 
 # Create subnet in the VPC with an available CIDR
@@ -94,16 +99,35 @@ resource "aws_subnet" "main" {
   
   tags = {
     Name = "hai-ci-subnet"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
-# Create Internet Gateway
+# Check for existing internet gateways in the VPC
+data "aws_internet_gateway" "existing" {
+  filter {
+    name   = "attachment.vpc-id"
+    values = [local.vpc_id]
+  }
+}
+
+# Create Internet Gateway only if none exists
 resource "aws_internet_gateway" "main" {
+  count = length(data.aws_internet_gateway.existing) == 0 ? 1 : 0
+  
   vpc_id = local.vpc_id
 
   tags = {
     Name = "hai-ci-igw"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
+}
+
+# Use existing internet gateway or the newly created one
+locals {
+  igw_id = length(data.aws_internet_gateway.existing) > 0 ? data.aws_internet_gateway.existing.id : aws_internet_gateway.main[0].id
 }
 
 # Create Route Table
@@ -112,11 +136,13 @@ resource "aws_route_table" "main" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+    gateway_id = local.igw_id
   }
 
   tags = {
     Name = "hai-ci-rt"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -159,52 +185,150 @@ resource "aws_security_group" "main" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
 
-resource "aws_key_pair" "main" {
-  key_name   = "hai-ci-key"
-  public_key = file("${path.module}/id_rsa.pub")
+  tags = {
+    Name = "hai-ci-sg"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+  }
 }
 
 resource "aws_key_pair" "ec2_user" {
   key_name   = "hai-ci-ec2-user-key"
-  public_key = file("${path.module}/id_rsa.pub")
+  public_key = file("${path.module}/ec2_user_rsa.pub")
+  
+  tags = {
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+  }
+}
+
+# Get latest Amazon Linux 2023 AMI
+
+data "aws_ami" "linux" {
+  most_recent = true
+  owners      = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Get latest Windows Server 2022 AMI
+
+data "aws_ami" "windows" {
+  most_recent = true
+  owners      = ["801119661308"] # Amazon's official Windows AMIs
+  filter {
+    name   = "name"
+    values = ["Windows_Server-2022-English-Full-Base-*"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Infer Linux username from AMI name
+locals {
+  linux_ami_name = data.aws_ami.linux.name
+  linux_user_map = {
+    "al2023"  = "ec2-user"
+    "amzn"    = "ec2-user"
+    "ubuntu"  = "ubuntu"
+    "centos"  = "centos"
+    "debian"  = "admin"
+    "rhel"    = "ec2-user"
+    "fedora"  = "fedora"
+  }
+  linux_ssh_user = lookup(local.linux_user_map, regex("^([a-z0-9]+)", local.linux_ami_name)[0], "ec2-user")
 }
 
 resource "aws_instance" "linux" {
-  ami           = "ami-0c7217cdde317cfec" # Amazon Linux 2023 in us-east-1
+  depends_on = [aws_key_pair.ec2_user]
+  
+  ami           = data.aws_ami.linux.id
   instance_type = "t3.micro"
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.ec2_user.key_name
   associate_public_ip_address = true
+  
+  # Add user data to ensure the instance is properly configured
+  user_data = <<-EOF
+              #!/bin/bash
+              # Ensure the instance is properly configured
+              echo "Linux instance user data executed"
+              # Update system packages
+              yum update -y
+              # Install basic utilities
+              yum install -y curl wget git
+              echo "Linux instance configured successfully"
+              EOF
+  
   tags = {
     Name = "hai-linux-ci"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
 resource "aws_instance" "windows" {
-  ami           = "ami-053b0d53c279acc90" # Windows Server 2019 Base in us-east-1
-  instance_type = "t3.micro"
+  ami           = data.aws_ami.windows.id
+  instance_type = "t3.small"  # Better for Windows Server
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
-  key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
   
-  # User data to set Administrator password
-  user_data = base64encode(<<-EOF
+  # User data to set Administrator password and configure SMB (improved for accessibility)
+  user_data_base64 = base64encode(<<-EOF
     <powershell>
     # Set Administrator password
     $password = ConvertTo-SecureString "${var.windows_password}" -AsPlainText -Force
     Set-LocalUser -Name "Administrator" -Password $password
-    
+
     # Enable WinRM for remote management
     Enable-PSRemoting -Force
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
-    
-    # Configure SMB for file sharing
-    Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -All
-    
+
+    # Create the share folder and set NTFS permissions
+    $sharePath = "C:\TestShare"
+    New-Item -ItemType Directory -Path $sharePath -Force | Out-Null
+    # Grant 'Everyone' full control NTFS permissions
+    icacls $sharePath /grant Everyone:(OI)(CI)F /T
+
+    # Create the SMB share and grant 'Everyone' full access
+    if (-not (Get-SmbShare -Name "TestShare" -ErrorAction SilentlyContinue)) {
+      New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Everyone"
+    }
+
+    # Configure Windows Firewall for SMB and RDP
+    New-NetFirewallRule -DisplayName "Allow SMB Inbound" -Direction Inbound -LocalPort 445 -Protocol TCP -Action Allow -Profile Any
+    New-NetFirewallRule -DisplayName "Allow RDP Inbound" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any
+
+    # (Optional) Disable SMB signing requirement for easier Linux access
+    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
+
     Write-Host "Windows instance configured successfully"
     </powershell>
     EOF
@@ -212,6 +336,10 @@ resource "aws_instance" "windows" {
   
   tags = {
     Name = "hai-windows-ci"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+    OS = "Windows"
+    OSVersion = "Server2022"
   }
 }
 
@@ -229,4 +357,8 @@ resource "null_resource" "check_windows_instance" {
   provisioner "local-exec" {
     command = "echo Windows instance created with IP: ${aws_instance.windows.public_ip}"
   }
+}
+
+output "linux_ssh_user" {
+  value = local.linux_ssh_user
 } 
