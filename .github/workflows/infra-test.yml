@@ -96,6 +96,11 @@ jobs:
         with:
           name: linux_ssh_key
 
+      - name: Set SSH key permissions
+        run: |
+          chmod 600 id_rsa
+          echo "SSH key permissions set"
+
       - name: Test SSH to Linux
         working-directory: ${{ github.workspace }}
         run: bash tests/test_linux_ssh_connectivity.sh ${{ needs.provision.outputs.linux_ip }}
@@ -111,6 +116,13 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
+        env:
+          TEST_LINUX_HOST: ${{ needs.provision.outputs.linux_ip }}
+          TEST_LINUX_USER: ubuntu
+          TEST_LINUX_SSH_KEY: ${{ github.workspace }}/id_rsa
+          TEST_WINDOWS_HOST: ${{ needs.provision.outputs.windows_ip }}
+          TEST_WINDOWS_USER: Administrator
+          TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}
         run: |
           # Install the package in development mode
           pip install -e .
@@ -123,6 +135,7 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "Files in current directory: $(ls -la)"
           echo "Files in core directory: $(ls -la core/)"
+          echo "SSH key exists: $(ls -la id_rsa)"
           echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
           
           # Test import

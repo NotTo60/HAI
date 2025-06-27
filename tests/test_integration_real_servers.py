@@ -7,14 +7,23 @@ from core.file_transfer import upload_file, download_file
 
 # Helper to build a minimal ServerEntry for each protocol
 def build_server_entry(prefix, method, os_type):
+    # For Linux SSH, use SSH key instead of password
+    if prefix == "LINUX" and method == "ssh":
+        ssh_key_path = os.environ.get("TEST_LINUX_SSH_KEY", "terraform/id_rsa")
+        password = None
+        ssh_key = ssh_key_path
+    else:
+        password = os.environ[f"TEST_{prefix}_PASS"]
+        ssh_key = None
+    
     return ServerEntry(
         hostname=f"{prefix.lower()}-test",
         ip=os.environ[f"TEST_{prefix}_HOST"],
         dns=os.environ.get(f"TEST_{prefix}_DNS", ""),
         location=os.environ.get(f"TEST_{prefix}_LOCATION", "test-lab"),
         user=os.environ[f"TEST_{prefix}_USER"],
-        password=os.environ[f"TEST_{prefix}_PASS"],
-        ssh_key=None,
+        password=password,
+        ssh_key=ssh_key,
         connection_method=method,
         port=int(os.environ.get(f"TEST_{prefix}_PORT", 22)),
         active=True,
@@ -27,7 +36,7 @@ def build_server_entry(prefix, method, os_type):
     )
 
 required_envs = [
-    "TEST_LINUX_HOST", "TEST_LINUX_USER", "TEST_LINUX_PASS",
+    "TEST_LINUX_HOST", "TEST_LINUX_USER", "TEST_LINUX_SSH_KEY",
     "TEST_WINDOWS_HOST", "TEST_WINDOWS_USER", "TEST_WINDOWS_PASS"
 ]
 
