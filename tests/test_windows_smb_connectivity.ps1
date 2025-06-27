@@ -44,7 +44,7 @@ if (-not $portOpen) {
 
 $shareAccessible = $false
 
-# Test 2: Try to access the TestShare we created
+# Test SMB share access
 Write-Host "Testing SMB share access..."
 $testPath = "\\$TargetIP\TestShare"
 Write-Host "Attempting to access: $testPath"
@@ -69,74 +69,75 @@ foreach ($method in $methods) {
     }
 }
 
-# Try with explicit credentials if available
-if (-not $shareAccessible) {
-    Write-Host "Trying with explicit credentials..."
+# Try to enumerate shares using net view only if on Windows
+if (-not $shareAccessible -and ($IsWindows -or $env:OS -eq "Windows_NT")) {
+    Write-Host "Trying to enumerate shares using net view..."
     try {
-        $cred = New-Object System.Management.Automation.PSCredential("Administrator", (ConvertTo-SecureString "TemporaryPassword123!" -AsPlainText -Force))
-        $session = New-PSSession -ComputerName $TargetIP -Credential $cred -ErrorAction SilentlyContinue
-        if ($session) {
-            Write-Host "PowerShell remoting session established"
+        $netViewOutput = net view "\\$TargetIP" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Successfully enumerated shares:"
+            Write-Host $netViewOutput
             $shareAccessible = $true
-            Remove-PSSession $session
+        } else {
+            Write-Host "Could not enumerate shares with net view: $netViewOutput"
         }
     } catch {
-        Write-Host "PowerShell remoting failed: $_"
+        Write-Host "net view failed: $_"
+    }
+} elseif (-not $shareAccessible) {
+    Write-Host "Skipping net view: not running on Windows"
+}
+
+# Try to access C$ share as fallback
+if (-not $shareAccessible) {
+    Write-Host "Trying to access C$ share as fallback..."
+    $cSharePath = "\\$TargetIP\C$"
+    try {
+        if (Test-Path $cSharePath -ErrorAction SilentlyContinue) {
+            Write-Host "C$ share is accessible"
+            $shareAccessible = $true
+        } else {
+            Write-Host "C$ share is not accessible"
+        }
+    } catch {
+        Write-Host "C$ access failed: $_"
     }
 }
 
+# Try to access ADMIN$ share as another fallback
 if (-not $shareAccessible) {
-    Write-Host "TestShare is not accessible, trying alternative methods..."
-    
-    # Try to enumerate shares using net view only if on Windows
-    if ($IsWindows -or $env:OS -eq "Windows_NT") {
-        Write-Host "Trying to enumerate shares using net view..."
-        try {
-            $netViewOutput = net view "\\$TargetIP" 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "Successfully enumerated shares:"
-                Write-Host $netViewOutput
-                $shareAccessible = $true
-            } else {
-                Write-Host "Could not enumerate shares with net view: $netViewOutput"
-            }
-        } catch {
-            Write-Host "net view failed: $_"
+    Write-Host "Trying to access ADMIN$ share as fallback..."
+    $adminSharePath = "\\$TargetIP\ADMIN$"
+    try {
+        if (Test-Path $adminSharePath -ErrorAction SilentlyContinue) {
+            Write-Host "ADMIN$ share is accessible"
+            $shareAccessible = $true
+        } else {
+            Write-Host "ADMIN$ share is not accessible"
         }
-    } else {
-        Write-Host "Skipping net view: not running on Windows"
+    } catch {
+        Write-Host "ADMIN$ access failed: $_"
+    }
+}
+
+# Try to access TestShare with different authentication methods
+if (-not $shareAccessible) {
+    Write-Host "Trying TestShare with different authentication methods..."
+    
+    # Try with anonymous access
+    try {
+        $testPath = "\\$TargetIP\TestShare"
+        if (Test-Path $testPath -ErrorAction SilentlyContinue) {
+            Write-Host "TestShare accessible with anonymous access"
+            $shareAccessible = $true
+        }
+    } catch {
+        Write-Host "Anonymous access to TestShare failed"
     }
     
-    # Try to access C$ share as fallback
+    # Try with guest access (if we had credentials)
     if (-not $shareAccessible) {
-        Write-Host "Trying to access C$ share as fallback..."
-        $cSharePath = "\\$TargetIP\C$"
-        try {
-            if (Test-Path $cSharePath -ErrorAction SilentlyContinue) {
-                Write-Host "C$ share is accessible"
-                $shareAccessible = $true
-            } else {
-                Write-Host "C$ share is not accessible"
-            }
-        } catch {
-            Write-Host "C$ access failed: $_"
-        }
-    }
-    
-    # Try to access ADMIN$ share as another fallback
-    if (-not $shareAccessible) {
-        Write-Host "Trying to access ADMIN$ share as fallback..."
-        $adminSharePath = "\\$TargetIP\ADMIN$"
-        try {
-            if (Test-Path $adminSharePath -ErrorAction SilentlyContinue) {
-                Write-Host "ADMIN$ share is accessible"
-                $shareAccessible = $true
-            } else {
-                Write-Host "ADMIN$ share is not accessible"
-            }
-        } catch {
-            Write-Host "ADMIN$ access failed: $_"
-        }
+        Write-Host "Note: Guest access would require credentials"
     }
 }
 
@@ -157,5 +158,8 @@ if ($shareAccessible) {
     Write-Host "2. SMB service not running"
     Write-Host "3. Network connectivity issues"
     Write-Host "4. Authentication problems"
+    Write-Host "5. Windows security policies blocking access"
+    Write-Host ""
+    Write-Host "Recommendation: Use the bash test script (test_windows_smb_connectivity.sh) for better SMB testing"
     exit 1
 } 
