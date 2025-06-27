@@ -100,28 +100,13 @@ resource "aws_subnet" "main" {
   }
 }
 
-# Check for existing internet gateways in the VPC
-data "aws_internet_gateway" "existing" {
-  filter {
-    name   = "attachment.vpc-id"
-    values = [local.vpc_id]
-  }
-}
-
-# Create Internet Gateway only if none exists
+# Create Internet Gateway
 resource "aws_internet_gateway" "main" {
-  count = length(data.aws_internet_gateway.existing) == 0 ? 1 : 0
-  
   vpc_id = local.vpc_id
 
   tags = {
     Name = "hai-ci-igw"
   }
-}
-
-# Use existing internet gateway or the newly created one
-locals {
-  igw_id = length(data.aws_internet_gateway.existing) > 0 ? data.aws_internet_gateway.existing[0].id : aws_internet_gateway.main[0].id
 }
 
 # Create Route Table
@@ -130,7 +115,7 @@ resource "aws_route_table" "main" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = local.igw_id
+    gateway_id = aws_internet_gateway.main.id
   }
 
   tags = {
