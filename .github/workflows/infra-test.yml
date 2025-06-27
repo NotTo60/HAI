@@ -18,6 +18,19 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Verify Terraform Installation
+        run: |
+          echo "=== TERRAFORM INSTALLATION VERIFICATION ==="
+          echo "Terraform version:"
+          terraform version
+          echo "Terraform location:"
+          which terraform
+          echo "PATH:"
+          echo $PATH
+          echo "=== END VERIFICATION ==="
 
       - name: Validate AWS Credentials
         run: |
@@ -65,7 +78,17 @@ jobs:
 
       - name: Terraform Init and Apply
         run: |
+          echo "=== TERRAFORM EXECUTION DEBUG ==="
+          echo "Current directory: $(pwd)"
+          echo "Terraform directory contents:"
+          ls -la terraform/
+          echo "Terraform executable:"
+          which terraform
+          echo "Terraform version:"
+          terraform version
+          echo "=== STARTING TERRAFORM ==="
           cd terraform
+          echo "Changed to terraform directory: $(pwd)"
           terraform init
           terraform apply -auto-approve -var="windows_password=${{ secrets.TEST_WINDOWS_PASS }}"
         env:
@@ -75,7 +98,15 @@ jobs:
       - name: Output VM IPs
         id: tf_outputs
         run: |
+          echo "=== TERRAFORM OUTPUT DEBUG ==="
+          echo "Current directory: $(pwd)"
+          echo "Terraform executable:"
+          which terraform
+          echo "Terraform version:"
+          terraform version
+          echo "=== GETTING TERRAFORM OUTPUTS ==="
           cd terraform
+          echo "Changed to terraform directory: $(pwd)"
           echo "linux_ip=$(terraform output -raw linux_ip)" >> $GITHUB_OUTPUT
           echo "windows_ip=$(terraform output -raw windows_ip)" >> $GITHUB_OUTPUT
           echo "Linux instance created with IP: $(terraform output -raw linux_ip)"
