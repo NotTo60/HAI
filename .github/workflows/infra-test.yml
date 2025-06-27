@@ -19,7 +19,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Clean up old VPCs (dangerous: deletes all VPCs in region)
+      - name: "Clean up old VPCs (dangerous: deletes all VPCs in region)"
         run: |
           for vpc in $(aws ec2 describe-vpcs --query "Vpcs[].VpcId" --output text); do
             aws ec2 delete-vpc --vpc-id $vpc || true
@@ -121,12 +121,13 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: |
+          export PYTHONPATH="${GITHUB_WORKSPACE}:${PYTHONPATH}"
           echo "PYTHONPATH=$PYTHONPATH"
-          export PYTHONPATH=${GITHUB_WORKSPACE}
-          pytest tests/test_integration_real_servers.py
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory: $(ls -la)"
+          echo "Files in core directory: $(ls -la core/)"
+          python -m pytest tests/test_integration_real_servers.py -v
 
       - name: Upload test logs
         if: always()
