@@ -14,11 +14,6 @@ on:
         required: false
         default: false
         type: boolean
-  # Run cleanup automatically after any workflow that might create infrastructure
-  workflow_run:
-    workflows: ["Modular CI Pipeline", "Provision Infrastructure", "Test Virtual Network Services", "Test Application Code"]
-    types: [completed]
-    branches: [main]
 
 jobs:
   cleanup:

@@ -7,3 +7,7 @@ class BaseConnector:
 
     def exec_command(self, command):
         raise NotImplementedError
+
+    def is_alive(self):
+        """Check if the connection is still alive and functional."""
+        raise NotImplementedError

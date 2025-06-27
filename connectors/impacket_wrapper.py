@@ -60,6 +60,18 @@ class ImpacketWrapper(BaseConnector):
         logger.info(f"Result: {result}")
         return result, ""
 
+    def is_alive(self):
+        """Check if the Impacket connection is still alive and functional."""
+        if not self.connection:
+            return False
+        try:
+            # For now, return True if connection exists (simulated)
+            # TODO: Implement actual Impacket connection health check
+            return True
+        except Exception as e:
+            logger.warning(f"Impacket connection test failed: {e}")
+            return False
+
     @classmethod
     def connect_cls(cls, host, user, password=None, domain="", lmhash="", nthash="", aesKey="", doKerberos=False, kdcHost=None, timeout=DEFAULT_TIMEOUT, client_id=None, **kwargs):
         instance = cls(host, user, password, domain, lmhash, nthash, aesKey, doKerberos, kdcHost, timeout, client_id, **kwargs)

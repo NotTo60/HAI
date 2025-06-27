@@ -79,6 +79,18 @@ class SSHConnector(BaseConnector):
             logger.warning(f"Command error: {err}")
         return out, err
 
+    def is_alive(self):
+        """Check if the SSH connection is still alive and functional."""
+        if not self.client:
+            return False
+        try:
+            # Try to execute a simple command to test the connection
+            self.client.exec_command("echo 'test'", timeout=5)
+            return True
+        except Exception as e:
+            logger.warning(f"SSH connection test failed: {e}")
+            return False
+
     @classmethod
     def connect_cls(cls, host, port=DEFAULT_SSH_PORT, user=None, password=None, ssh_key=None, timeout=DEFAULT_TIMEOUT, client_id=None, **kwargs):
         instance = cls(host, port, user, password, ssh_key, timeout, client_id, **kwargs)

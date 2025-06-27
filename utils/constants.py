@@ -70,7 +70,7 @@ DEFAULT_HTTP_PORT = 80
 DEFAULT_HTTPS_PORT = 443
 
 # Supported protocols
-SUPPORTED_CONNECTION_METHODS = ["ssh", "smb", "custom", "ftp"]
+SUPPORTED_CONNECTION_METHODS = ["ssh", "smb", "custom", "ftp", "impacket"]
 SUPPORTED_FILE_TRANSFER_PROTOCOLS = ["sftp", "scp", "smb", "ftp"]
 SUPPORTED_OS_TYPES = ["linux", "windows", "unknown"]
 
