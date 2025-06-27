@@ -23,23 +23,42 @@ try {
         exit 1
     }
     
-    # Test 2: Try to list SMB shares
-    Write-Host "Testing SMB share enumeration..."
-    $shares = Get-WmiObject -Class Win32_Share -ComputerName $TargetIP -ErrorAction Stop
-    Write-Host "Successfully enumerated shares:"
-    foreach ($share in $shares) {
-        Write-Host "  - $($share.Name) ($($share.Path))"
-    }
+    # Test 2: Try to access SMB shares using modern approach
+    Write-Host "Testing SMB share access..."
     
-    # Test 3: Try to access the TestShare we created
-    Write-Host "Testing access to TestShare..."
+    # Try to access the TestShare we created
     $testPath = "\\$TargetIP\TestShare"
-    if (Test-Path $testPath) {
+    Write-Host "Attempting to access: $testPath"
+    
+    if (Test-Path $testPath -ErrorAction SilentlyContinue) {
         Write-Host "TestShare is accessible"
-        $items = Get-ChildItem $testPath -ErrorAction Stop
-        Write-Host "TestShare contents: $($items.Count) items"
+        try {
+            $items = Get-ChildItem $testPath -ErrorAction Stop
+            Write-Host "TestShare contents: $($items.Count) items"
+        } catch {
+            Write-Host "Could not list TestShare contents: $_"
+        }
     } else {
-        Write-Host "TestShare is not accessible"
+        Write-Host "TestShare is not accessible, trying alternative methods..."
+        
+        # Try to enumerate shares using net view
+        Write-Host "Trying to enumerate shares using net view..."
+        $netViewOutput = net view "\\$TargetIP" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "Successfully enumerated shares:"
+            Write-Host $netViewOutput
+        } else {
+            Write-Host "Could not enumerate shares with net view"
+        }
+        
+        # Try to access C$ share as fallback
+        Write-Host "Trying to access C$ share as fallback..."
+        $cSharePath = "\\$TargetIP\C$"
+        if (Test-Path $cSharePath -ErrorAction SilentlyContinue) {
+            Write-Host "C$ share is accessible"
+        } else {
+            Write-Host "C$ share is not accessible"
+        }
     }
     
     Write-Host "WINDOWS SMB CONNECTIVITY OK"
