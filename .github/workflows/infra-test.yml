@@ -234,13 +234,38 @@ jobs:
 
       - name: Wait for Windows RDP/SMB
         run: |
-          for i in {1..3}; do
-            if nc -z -v ${{ needs.provision.outputs.windows_ip }} 445; then
-              echo "Windows SMB is ready!"; exit 0;
+          echo "=== WINDOWS SMB CONNECTIVITY DEBUG ==="
+          echo "Target IP: ${{ needs.provision.outputs.windows_ip }}"
+          echo "Testing SMB connectivity on port 445..."
+          
+          # Wait longer for Windows to fully boot and configure SMB
+          for i in {1..10}; do
+            echo "Attempt $i/10: Testing SMB connectivity..."
+            
+            # Test basic connectivity first
+            if nc -z -w 5 ${{ needs.provision.outputs.windows_ip }} 445; then
+              echo "Windows SMB is ready on port 445!"
+              exit 0
+            else
+              echo "Port 445 not reachable yet..."
+              
+              # Also test RDP port to see if Windows is responding at all
+              if nc -z -w 5 ${{ needs.provision.outputs.windows_ip }} 3389; then
+                echo "RDP port 3389 is reachable, Windows is booted but SMB not ready yet"
+              else
+                echo "Neither SMB (445) nor RDP (3389) ports are reachable"
+              fi
             fi
-            echo "Waiting for SMB..."; sleep 10;
+            
+            echo "Waiting 15 seconds before next attempt..."
+            sleep 15
           done
-          echo "ERROR: Windows SMB not reachable after 30 seconds."; exit 1
+          
+          echo "ERROR: Windows SMB not reachable after 2.5 minutes."
+          echo "Final connectivity test:"
+          nc -zv ${{ needs.provision.outputs.windows_ip }} 445 || echo "Port 445 still not reachable"
+          nc -zv ${{ needs.provision.outputs.windows_ip }} 3389 || echo "Port 3389 also not reachable"
+          exit 1
 
     outputs:
       detected_username: ${{ steps.set_username.outputs.detected_username }}
