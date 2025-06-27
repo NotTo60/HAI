@@ -13,7 +13,11 @@ def build_server_entry(prefix, method, os_type):
         password = None
         ssh_key = ssh_key_path
     else:
-        password = os.environ[f"TEST_{prefix}_PASS"]
+        # For Windows, use the known password set by Terraform
+        if prefix == "WINDOWS":
+            password = "TemporaryPassword123!"  # Password set by Terraform user_data
+        else:
+            password = os.environ[f"TEST_{prefix}_PASS"]
         ssh_key = None
     
     return ServerEntry(
@@ -37,7 +41,7 @@ def build_server_entry(prefix, method, os_type):
 
 required_envs = [
     "TEST_LINUX_USER", "TEST_LINUX_SSH_KEY",  # IP comes from CI workflow, not secrets
-    "TEST_WINDOWS_PASS"  # Password set by Terraform user_data, host/user from Terraform
+    # TEST_WINDOWS_PASS no longer needed - password is set by Terraform to "TemporaryPassword123!"
 ]
 
 skip_if_no_env = pytest.mark.skipif(

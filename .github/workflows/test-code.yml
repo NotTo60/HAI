@@ -42,10 +42,9 @@ jobs:
           TEST_LINUX_HOST: ${{ inputs.linux_ip }}
           TEST_LINUX_USER: ${{ inputs.detected_username }}
           TEST_LINUX_SSH_KEY: ${{ github.workspace }}/ec2_user_rsa
-          # Windows credentials still need secrets
+          # Windows credentials - password is set by Terraform to "TemporaryPassword123!"
           TEST_WINDOWS_HOST: ${{ inputs.windows_ip }}
           TEST_WINDOWS_USER: Administrator
-          TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}
         run: |
           # Debug information before installation
           echo "=== PRE-INSTALLATION DEBUG ==="
