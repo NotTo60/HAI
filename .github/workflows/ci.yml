@@ -31,8 +31,5 @@ jobs:
         pytest 
     - name: Integration Test (Real Servers)
       env:
-        TEST_WINDOWS_HOST: ${{ secrets.TEST_WINDOWS_HOST }}
-        TEST_WINDOWS_USER: ${{ secrets.TEST_WINDOWS_USER }}
         TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}
-        TEST_WINDOWS_PORT: ${{ secrets.TEST_WINDOWS_PORT }}
       run: pytest tests/test_integration_real_servers.py 
