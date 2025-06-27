@@ -2,35 +2,44 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Use existing VPC instead of creating new one
-data "aws_vpc" "existing" {
-  # Use the default VPC (most reliable for CI)
-  default = true
-  
-  # Alternative: Use specific VPC by tags
-  # tags = {
-  #   Name = "default"
-  # }
-  
-  # Alternative: Use specific VPC by ID
-  # id = "vpc-12345678"
+# Get all VPCs to find an existing one
+data "aws_vpcs" "all" {}
+
+# Use existing VPC if available, otherwise create a new one
+locals {
+  existing_vpc_id = length(data.aws_vpcs.all.ids) > 0 ? data.aws_vpcs.all.ids[0] : null
 }
 
-# Use existing subnet instead of creating new one
-data "aws_subnet" "existing" {
-  # Option 1: By subnet ID
-  # id = "subnet-12345678"
+# Create VPC only if no existing VPC is found
+resource "aws_vpc" "main" {
+  count = local.existing_vpc_id == null ? 1 : 0
   
-  # Option 2: By availability zone and VPC
+  cidr_block = "10.0.0.0/16"
+  
+  tags = {
+    Name = "hai-ci-vpc"
+  }
+}
+
+# Use existing VPC or the newly created one
+locals {
+  vpc_id = local.existing_vpc_id != null ? local.existing_vpc_id : aws_vpc.main[0].id
+}
+
+# Create subnet in the VPC
+resource "aws_subnet" "main" {
+  vpc_id     = local.vpc_id
+  cidr_block = "10.0.1.0/24"
   availability_zone = "us-east-1a"
-  vpc_id            = data.aws_vpc.existing.id
+  map_public_ip_on_launch = true
   
-  # Option 3: By CIDR block
-  # cidr_block = "10.0.1.0/24"
+  tags = {
+    Name = "hai-ci-subnet"
+  }
 }
 
 resource "aws_security_group" "main" {
-  vpc_id = data.aws_vpc.existing.id
+  vpc_id = local.vpc_id
 
   ingress {
     from_port   = 22
@@ -72,7 +81,7 @@ resource "aws_key_pair" "main" {
 resource "aws_instance" "linux" {
   ami           = "ami-0c02fb55956c7d316" # Ubuntu 22.04 LTS in us-east-1
   instance_type = "t3.micro"
-  subnet_id     = data.aws_subnet.existing.id
+  subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
@@ -84,7 +93,7 @@ resource "aws_instance" "linux" {
 resource "aws_instance" "windows" {
   ami           = "ami-053b0d53c279acc90" # Windows Server 2019 Base in us-east-1
   instance_type = "t3.micro"
-  subnet_id     = data.aws_subnet.existing.id
+  subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
