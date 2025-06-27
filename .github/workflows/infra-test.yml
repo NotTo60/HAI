@@ -170,10 +170,6 @@ jobs:
           done
           echo "ERROR: Linux SSH not reachable with any username after 30 seconds."; exit 1
 
-      - name: Output Detected Username
-        run: |
-          echo "Detected Linux username: ${{ env.DETECTED_USERNAME }}"
-
       - name: Set output for detected username
         id: set_username
         run: echo "detected_username=${DETECTED_USERNAME}" >> $GITHUB_OUTPUT
