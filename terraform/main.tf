@@ -7,6 +7,7 @@ variable "windows_password" {
   description = "Password for Windows Administrator user"
   type        = string
   sensitive   = true
+  default     = "TemporaryPassword123!"  # Default password if not provided
 }
 
 # Get all VPCs to find an existing one
