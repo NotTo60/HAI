@@ -26,6 +26,8 @@ resource "aws_vpc" "main" {
   
   tags = {
     Name = "hai-ci-vpc"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -97,6 +99,8 @@ resource "aws_subnet" "main" {
   
   tags = {
     Name = "hai-ci-subnet"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -106,6 +110,8 @@ resource "aws_internet_gateway" "main" {
 
   tags = {
     Name = "hai-ci-igw"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -120,6 +126,8 @@ resource "aws_route_table" "main" {
 
   tags = {
     Name = "hai-ci-rt"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -162,16 +170,32 @@ resource "aws_security_group" "main" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "hai-ci-sg"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+  }
 }
 
 resource "aws_key_pair" "main" {
   key_name   = "hai-ci-key"
   public_key = file("${path.module}/id_rsa.pub")
+  
+  tags = {
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+  }
 }
 
 resource "aws_key_pair" "ec2_user" {
   key_name   = "hai-ci-ec2-user-key"
   public_key = file("${path.module}/id_rsa.pub")
+  
+  tags = {
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+  }
 }
 
 resource "aws_instance" "linux" {
@@ -183,6 +207,8 @@ resource "aws_instance" "linux" {
   associate_public_ip_address = true
   tags = {
     Name = "hai-linux-ci"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
@@ -215,6 +241,8 @@ resource "aws_instance" "windows" {
   
   tags = {
     Name = "hai-windows-ci"
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
   }
 }
 
