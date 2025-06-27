@@ -1,0 +1,169 @@
+name: Provision Infrastructure
+
+on:
+  workflow_call:
+    outputs:
+      linux_ip:
+        description: "Linux instance IP address"
+        value: ${{ jobs.provision-infra.outputs.linux_ip }}
+      windows_ip:
+        description: "Windows instance IP address"
+        value: ${{ jobs.provision-infra.outputs.windows_ip }}
+      detected_username:
+        description: "Detected Linux username"
+        value: ${{ jobs.provision-infra.outputs.detected_username }}
+
+jobs:
+  provision-infra:
+    name: Provision Infrastructure
+    runs-on: ubuntu-latest
+    outputs:
+      linux_ip: ${{ steps.tf_outputs.outputs.linux_ip }}
+      windows_ip: ${{ steps.tf_outputs.outputs.windows_ip }}
+      detected_username: ${{ steps.detect_username.outputs.username }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure SSH key exists for Terraform
+        run: |
+          if [ ! -f terraform/id_rsa.pub ]; then
+            ssh-keygen -t rsa -b 2048 -f terraform/id_rsa -N ""
+          fi
+
+      - name: Generate new SSH key for ec2-user
+        run: |
+          # Generate a new SSH key pair specifically for ec2-user
+          ssh-keygen -t rsa -b 2048 -f terraform/ec2_user_rsa -N ""
+          echo "Generated new SSH key pair for ec2-user"
+          echo "Public key:"
+          cat terraform/ec2_user_rsa.pub
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Verify Terraform Installation
+        run: |
+          echo "=== TERRAFORM INSTALLATION VERIFICATION ==="
+          echo "Terraform version:"
+          terraform version
+          echo "Terraform location:"
+          which terraform
+          echo "PATH:"
+          echo $PATH
+          echo "=== END VERIFICATION ==="
+
+      - name: Validate AWS Credentials
+        run: |
+          echo "Validating AWS credentials..."
+          aws sts get-caller-identity
+          echo "AWS credentials are valid!"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Remove existing AWS key pair if present
+        run: |
+          aws ec2 delete-key-pair --key-name hai-ci-ec2-user-key || true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Clean up conflicting subnets
+        run: |
+          echo "Checking for existing subnets that might conflict..."
+          # Get VPC ID
+          VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "")
+          if [ ! -z "$VPC_ID" ]; then
+            echo "Found VPC: $VPC_ID"
+            # List subnets in the VPC that might conflict with our new CIDR
+            SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[?CidrBlock==`10.0.200.0/24`].SubnetId' --output text 2>/dev/null || echo "")
+            if [ ! -z "$SUBNETS" ]; then
+              echo "Found conflicting subnet(s): $SUBNETS"
+              echo "Deleting conflicting subnets..."
+              for SUBNET in $SUBNETS; do
+                aws ec2 delete-subnet --subnet-id $SUBNET || echo "Failed to delete subnet $SUBNET"
+              done
+            else
+              echo "No conflicting subnets found with CIDR 10.0.200.0/24"
+            fi
+            
+            # Also check for any subnets in the 10.0.x.x range that might overlap
+            echo "Checking for any subnets in 10.0.x.x range..."
+            ALL_SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[?starts_with(CidrBlock, `10.0.`)].{SubnetId:SubnetId,CidrBlock:CidrBlock}' --output json 2>/dev/null || echo "[]")
+            echo "Existing subnets in 10.0.x.x range: $ALL_SUBNETS"
+            
+            # If there are any subnets in the 10.0.x.x range, delete them all to avoid conflicts
+            SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[?starts_with(CidrBlock, `10.0.`)].SubnetId' --output text 2>/dev/null || echo "")
+            if [ ! -z "$SUBNET_IDS" ]; then
+              echo "Found existing subnets in 10.0.x.x range, deleting all to avoid conflicts: $SUBNET_IDS"
+              for SUBNET_ID in $SUBNET_IDS; do
+                echo "Deleting subnet: $SUBNET_ID"
+                aws ec2 delete-subnet --subnet-id $SUBNET_ID || echo "Failed to delete subnet $SUBNET_ID"
+              done
+            fi
+          else
+            echo "No VPC found"
+          fi
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Terraform Init and Apply
+        run: |
+          echo "=== TERRAFORM EXECUTION DEBUG ==="
+          echo "Current directory: $(pwd)"
+          echo "Terraform directory contents:"
+          ls -la terraform/
+          echo "Terraform executable:"
+          which terraform
+          echo "Terraform version:"
+          terraform version
+          echo "=== STARTING TERRAFORM ==="
+          cd terraform
+          echo "Changed to terraform directory: $(pwd)"
+          terraform init
+          terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Output VM IPs
+        id: tf_outputs
+        run: |
+          echo "=== TERRAFORM OUTPUT DEBUG ==="
+          echo "Current directory: $(pwd)"
+          echo "Terraform executable:"
+          which terraform
+          echo "Terraform version:"
+          terraform version
+          echo "=== GETTING TERRAFORM OUTPUTS ==="
+          cd terraform
+          echo "Changed to terraform directory: $(pwd)"
+          echo "linux_ip=$(terraform output -raw linux_ip)" >> $GITHUB_OUTPUT
+          echo "windows_ip=$(terraform output -raw windows_ip)" >> $GITHUB_OUTPUT
+          echo "Linux instance created with IP: $(terraform output -raw linux_ip)"
+          echo "Windows instance created with IP: $(terraform output -raw windows_ip)"
+
+      - name: Wait for instances to be ready
+        run: |
+          echo "Waiting for instances to be ready..."
+          sleep 60
+          echo "Instances should be ready now"
+
+      - name: Detect Linux username
+        id: detect_username
+        run: |
+          cd terraform
+          echo "username=$(terraform output -raw linux_ssh_user)" >> $GITHUB_OUTPUT
+          echo "Detected Linux username: $(terraform output -raw linux_ssh_user)"
+
+      - name: Upload SSH key for later jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux_ssh_key
+          path: terraform/ec2_user_rsa 

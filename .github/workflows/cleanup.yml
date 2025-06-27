@@ -1,0 +1,203 @@
+name: Cleanup Infrastructure
+
+on:
+  workflow_call:
+
+jobs:
+  cleanup:
+    name: Cleanup Infrastructure
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Targeted cleanup - Remove workflow-specific key pairs
+        run: |
+          echo "=== TARGETED CLEANUP - KEY PAIRS ==="
+          echo "Removing only workflow-specific key pairs..."
+          
+          # Only delete our specific key pair (Windows uses password authentication)
+          aws ec2 delete-key-pair --key-name hai-ci-ec2-user-key 2>/dev/null || echo "Failed to delete hai-ci-ec2-user-key, continuing..."
+          
+          echo "Key pair cleanup completed"
+
+      - name: Targeted cleanup - Delete workflow-specific EC2 instances
+        run: |
+          echo "=== TARGETED CLEANUP - EC2 INSTANCES ==="
+          echo "Checking for workflow-specific EC2 instances..."
+          
+          # Get list of instances tagged with our workflow identifier
+          instance_list=$(aws ec2 describe-instances \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'Reservations[].Instances[].InstanceId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$instance_list" ]; then
+            echo "Found workflow-specific instances to terminate: $instance_list"
+            for instance_id in $instance_list; do
+              echo "Terminating workflow instance $instance_id"
+              aws ec2 terminate-instances --instance-ids $instance_id 2>/dev/null || echo "Failed to terminate instance $instance_id, continuing..."
+            done
+            
+            # Wait for instances to be terminated
+            echo "Waiting for instances to terminate..."
+            for instance_id in $instance_list; do
+              echo "Waiting for instance $instance_id to terminate..."
+              aws ec2 wait instance-terminated --instance-ids $instance_id 2>/dev/null || echo "Instance $instance_id termination wait failed, continuing..."
+            done
+          else
+            echo "No workflow-specific instances found"
+          fi
+          
+          echo "EC2 instance cleanup completed"
+
+      - name: Targeted cleanup - Delete workflow-specific security groups
+        run: |
+          echo "=== TARGETED CLEANUP - SECURITY GROUPS ==="
+          echo "Checking for workflow-specific security groups..."
+          
+          # Get list of security groups tagged with our workflow identifier
+          sg_list=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'SecurityGroups[].GroupId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$sg_list" ]; then
+            echo "Found workflow-specific security groups to delete: $sg_list"
+            for sg_id in $sg_list; do
+              echo "Deleting workflow security group $sg_id"
+              aws ec2 delete-security-group --group-id $sg_id 2>/dev/null || echo "Failed to delete security group $sg_id, continuing..."
+            done
+          else
+            echo "No workflow-specific security groups found"
+          fi
+          
+          echo "Security group cleanup completed"
+
+      - name: Targeted cleanup - Delete workflow-specific subnets
+        run: |
+          echo "=== TARGETED CLEANUP - SUBNETS ==="
+          echo "Checking for workflow-specific subnets..."
+          
+          # Get list of subnets tagged with our workflow identifier
+          subnet_list=$(aws ec2 describe-subnets \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'Subnets[].SubnetId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$subnet_list" ]; then
+            echo "Found workflow-specific subnets to delete: $subnet_list"
+            for subnet_id in $subnet_list; do
+              echo "Deleting workflow subnet $subnet_id"
+              aws ec2 delete-subnet --subnet-id $subnet_id 2>/dev/null || echo "Failed to delete subnet $subnet_id, continuing..."
+            done
+          else
+            echo "No workflow-specific subnets found"
+          fi
+          
+          echo "Subnet cleanup completed"
+
+      - name: Targeted cleanup - Delete workflow-specific route tables
+        run: |
+          echo "=== TARGETED CLEANUP - ROUTE TABLES ==="
+          echo "Checking for workflow-specific route tables..."
+          
+          # Get list of route tables tagged with our workflow identifier
+          rt_list=$(aws ec2 describe-route-tables \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'RouteTables[].RouteTableId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$rt_list" ]; then
+            echo "Found workflow-specific route tables to delete: $rt_list"
+            for rt_id in $rt_list; do
+              echo "Deleting workflow route table $rt_id"
+              aws ec2 delete-route-table --route-table-id $rt_id 2>/dev/null || echo "Failed to delete route table $rt_id, continuing..."
+            done
+          else
+            echo "No workflow-specific route tables found"
+          fi
+          
+          echo "Route table cleanup completed"
+
+      - name: Targeted cleanup - Delete workflow-specific internet gateways
+        run: |
+          echo "=== TARGETED CLEANUP - INTERNET GATEWAYS ==="
+          echo "Checking for workflow-specific internet gateways..."
+          
+          # Get list of internet gateways tagged with our workflow identifier
+          igw_list=$(aws ec2 describe-internet-gateways \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'InternetGateways[].InternetGatewayId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$igw_list" ]; then
+            echo "Found workflow-specific internet gateways to delete: $igw_list"
+            for igw_id in $igw_list; do
+              echo "Processing workflow IGW $igw_id"
+              
+              # Get VPC ID for this IGW
+              vpc_id=$(aws ec2 describe-internet-gateways \
+                --internet-gateway-ids $igw_id \
+                --query 'InternetGateways[0].Attachments[0].VpcId' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$vpc_id" ]; then
+                echo "Detaching IGW $igw_id from VPC $vpc_id"
+                aws ec2 detach-internet-gateway --internet-gateway-id $igw_id --vpc-id $vpc_id 2>/dev/null || echo "Failed to detach IGW $igw_id, continuing..."
+              fi
+              
+              echo "Deleting workflow IGW $igw_id"
+              aws ec2 delete-internet-gateway --internet-gateway-id $igw_id 2>/dev/null || echo "Failed to delete IGW $igw_id, continuing..."
+            done
+          else
+            echo "No workflow-specific internet gateways found"
+          fi
+          
+          echo "Internet gateway cleanup completed"
+
+      - name: Targeted cleanup - Delete workflow-specific VPCs
+        run: |
+          echo "=== TARGETED CLEANUP - VPCS ==="
+          echo "Cleaning up only workflow-specific VPCs..."
+          
+          # Get list of VPCs tagged with our workflow identifier
+          vpc_list=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'Vpcs[].VpcId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$vpc_list" ]; then
+            echo "Found workflow-specific VPCs to delete: $vpc_list"
+            for vpc_id in $vpc_list; do
+              echo "Deleting workflow VPC $vpc_id"
+              aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "Failed to delete VPC $vpc_id, continuing..."
+            done
+          else
+            echo "No workflow-specific VPCs found"
+          fi
+          
+          echo "VPC cleanup completed"
+
+      - name: Cleanup summary
+        run: |
+          echo "=== TARGETED CLEANUP SUMMARY ==="
+          echo "All targeted cleanup operations completed!"
+          echo "Only resources tagged with 'ManagedBy=hai-ci-workflow' were cleaned up."
+          echo "Existing resources not created by this workflow were preserved."
+          echo ""
+          echo "Resources cleaned up:"
+          echo "- EC2 instances with ManagedBy=hai-ci-workflow tag"
+          echo "- Security groups with ManagedBy=hai-ci-workflow tag"
+          echo "- Subnets with ManagedBy=hai-ci-workflow tag"
+          echo "- Route tables with ManagedBy=hai-ci-workflow tag"
+          echo "- Internet gateways with ManagedBy=hai-ci-workflow tag"
+          echo "- VPCs with ManagedBy=hai-ci-workflow tag"
+          echo "- Key pairs: hai-ci-ec2-user-key" 

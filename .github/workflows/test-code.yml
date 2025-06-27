@@ -1,0 +1,85 @@
+name: Test Application Code
+
+on:
+  workflow_call:
+    inputs:
+      linux_ip:
+        required: true
+        type: string
+      windows_ip:
+        required: true
+        type: string
+      detected_username:
+        required: true
+        type: string
+
+jobs:
+  test-code:
+    name: Test Application Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Download SSH key
+        uses: actions/download-artifact@v4
+        with:
+          name: linux_ssh_key
+
+      - name: Run application tests
+        working-directory: ${{ github.workspace }}
+        env:
+          # Linux host IP comes from Terraform outputs, not secrets
+          TEST_LINUX_HOST: ${{ inputs.linux_ip }}
+          TEST_LINUX_USER: ${{ inputs.detected_username }}
+          TEST_LINUX_SSH_KEY: ${{ github.workspace }}/ec2_user_rsa
+          # Windows credentials still need secrets
+          TEST_WINDOWS_HOST: ${{ inputs.windows_ip }}
+          TEST_WINDOWS_USER: Administrator
+          TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}
+        run: |
+          # Debug information before installation
+          echo "=== PRE-INSTALLATION DEBUG ==="
+          echo "Python version: $(python --version)"
+          echo "Pip version: $(pip --version)"
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory: $(ls -la)"
+          echo "Files in core directory: $(ls -la core/)"
+          echo "SSH key exists: $(ls -la ec2_user_rsa)"
+          
+          # Install dependencies first
+          echo "=== INSTALLING DEPENDENCIES ==="
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          # Install the package in development mode
+          echo "=== INSTALLING PACKAGE ==="
+          pip install -e .
+          
+          echo "=== POST-INSTALLATION DEBUG ==="
+          echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
+          
+          # Test imports
+          echo "=== TESTING IMPORTS ==="
+          python -c "import sys; print('Python executable:', sys.executable)"
+          python -c "import core; print('Core module imported successfully')" || echo "Core import failed"
+          python -c "from core.connection_manager import connect_with_fallback; print('connection_manager imported successfully')" || echo "connection_manager import failed"
+          
+          # List installed packages
+          echo "=== INSTALLED PACKAGES ==="
+          pip list | grep -E "(hai|core|pydantic)" || echo "No relevant packages found"
+          
+          # Run tests with verbose output
+          echo "=== RUNNING TESTS ==="
+          python -m pytest tests/test_integration_real_servers.py -v --tb=short
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: logs/ 

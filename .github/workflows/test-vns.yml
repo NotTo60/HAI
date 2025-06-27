@@ -1,0 +1,45 @@
+name: Test Virtual Network Services
+
+on:
+  workflow_call:
+    inputs:
+      linux_ip:
+        required: true
+        type: string
+      windows_ip:
+        required: true
+        type: string
+      detected_username:
+        required: true
+        type: string
+
+jobs:
+  test-vns:
+    name: Test Virtual Network Services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SSH key
+        uses: actions/download-artifact@v4
+        with:
+          name: linux_ssh_key
+
+      - name: Set SSH key permissions
+        run: |
+          chmod 600 ec2_user_rsa
+          echo "SSH key permissions set"
+
+      - name: Test SSH to Linux
+        working-directory: ${{ github.workspace }}
+        run: bash tests/test_linux_ssh_connectivity.sh ${{ inputs.linux_ip }} ${{ inputs.detected_username }}
+
+      - name: Test SMB to Windows
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }}
+
+      - name: Test SMB to Windows (Bash fallback)
+        if: failure()
+        working-directory: ${{ github.workspace }}
+        run: tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }} 
