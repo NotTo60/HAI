@@ -136,13 +136,8 @@ jobs:
           TEST_WINDOWS_USER: Administrator
           TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}
         run: |
-          # Install the package in development mode
-          pip install -e .
-          
-          # Set PYTHONPATH explicitly
-          export PYTHONPATH="${GITHUB_WORKSPACE}"
-          
-          # Debug information
+          # Debug information before installation
+          echo "=== PRE-INSTALLATION DEBUG ==="
           echo "PYTHONPATH=$PYTHONPATH"
           echo "Current directory: $(pwd)"
           echo "Files in current directory: $(ls -la)"
@@ -150,11 +145,35 @@ jobs:
           echo "SSH key exists: $(ls -la id_rsa)"
           echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
           
-          # Test import
-          python -c "import core; print('Core module imported successfully')"
+          # Try multiple installation methods
+          echo "=== INSTALLING PACKAGE ==="
           
-          # Run tests
-          python -m pytest tests/test_integration_real_servers.py -v
+          # Method 1: Install in development mode
+          pip install -e . || echo "pip install -e . failed"
+          
+          # Method 2: Add current directory to PYTHONPATH
+          export PYTHONPATH="${GITHUB_WORKSPACE}:${PYTHONPATH:-}"
+          
+          # Method 3: Try installing with pip install .
+          pip install . || echo "pip install . failed"
+          
+          echo "=== POST-INSTALLATION DEBUG ==="
+          echo "PYTHONPATH=$PYTHONPATH"
+          echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
+          
+          # Test imports
+          echo "=== TESTING IMPORTS ==="
+          python -c "import sys; print('Python executable:', sys.executable)"
+          python -c "import core; print('Core module imported successfully')" || echo "Core import failed"
+          python -c "from core.connection_manager import connect_with_fallback; print('connection_manager imported successfully')" || echo "connection_manager import failed"
+          
+          # List installed packages
+          echo "=== INSTALLED PACKAGES ==="
+          pip list | grep -E "(hai|core)" || echo "No hai or core packages found"
+          
+          # Run tests with verbose output
+          echo "=== RUNNING TESTS ==="
+          python -m pytest tests/test_integration_real_servers.py -v --tb=short
 
       - name: Upload test logs
         if: always()
