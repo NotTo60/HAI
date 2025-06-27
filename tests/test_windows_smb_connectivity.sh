@@ -12,12 +12,21 @@ fi
 
 echo "Testing SMB connectivity to $TARGET_IP..."
 
-# Test 1: Check if port 445 is reachable
-echo "Testing port 445 connectivity..."
-if timeout 5 bash -c "</dev/tcp/$TARGET_IP/445" 2>/dev/null; then
-    echo "Port 445 is reachable"
-else
-    echo "Port 445 is not reachable"
+# Retry loop for port 445
+max_attempts=10
+delay_seconds=10
+attempt=1
+port_open=0
+while [ $attempt -le $max_attempts ]; do
+    echo "Testing port 445 connectivity (attempt $attempt of $max_attempts)..."
+    nc -z -w3 "$TARGET_IP" 445 && port_open=1 && break
+    echo "Port 445 not open yet."
+    attempt=$((attempt+1))
+    sleep $delay_seconds
+done
+
+if [ $port_open -ne 1 ]; then
+    echo "Port 445 is not reachable after $max_attempts attempts."
     exit 1
 fi
 
