@@ -19,7 +19,7 @@ jobs:
       detected_username: ${{ needs.provision-infra.outputs.detected_username }}
 
   test-code:
-    needs: provision-infra
+    needs: [provision-infra, test-vns]
     uses: ./.github/workflows/test-code.yml
     secrets: inherit
     with:
@@ -28,6 +28,7 @@ jobs:
       detected_username: ${{ needs.provision-infra.outputs.detected_username }}
 
   cleanup:
-    needs: [provision-infra, test-vns, test-code]
+    needs: [provision-infra, test-vns]
+    if: always()
     uses: ./.github/workflows/cleanup.yml
     secrets: inherit
