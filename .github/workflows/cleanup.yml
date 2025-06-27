@@ -9,6 +9,11 @@ on:
         required: false
         default: false
         type: boolean
+  # Run cleanup automatically after any workflow that might create infrastructure
+  workflow_run:
+    workflows: ["Modular CI Pipeline", "Provision Infrastructure", "Test Virtual Network Services", "Test Application Code"]
+    types: [completed]
+    branches: [main]
 
 jobs:
   cleanup:
@@ -25,6 +30,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Get current workflow run ID
+        id: workflow_run
+        run: |
+          # Get the run ID from the triggering workflow
+          if [ "${{ github.event.workflow_run.id }}" != "" ]; then
+            echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+            echo "workflow_name=${{ github.event.workflow_run.name }}" >> $GITHUB_OUTPUT
+            echo "Triggering workflow run ID: ${{ github.event.workflow_run.id }}"
+          else
+            echo "run_id=${{ github.run_id }}" >> $GITHUB_OUTPUT
+            echo "workflow_name=${{ github.workflow }}" >> $GITHUB_OUTPUT
+            echo "Current workflow run ID: ${{ github.run_id }}"
+          fi
+
       - name: Targeted cleanup - Remove workflow-specific key pairs
         run: |
           echo "=== TARGETED CLEANUP - KEY PAIRS ==="
@@ -40,9 +59,9 @@ jobs:
           echo "=== TARGETED CLEANUP - EC2 INSTANCES ==="
           echo "Checking for workflow-specific EC2 instances..."
           
-          # Get list of instances tagged with our workflow identifier
+          # Get list of instances tagged with our workflow identifier and specific run ID
           instance_list=$(aws ec2 describe-instances \
-            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" "Name=tag:WorkflowRunID,Values=${{ steps.workflow_run.outputs.run_id }}" \
             --query 'Reservations[].Instances[].InstanceId' \
             --output text 2>/dev/null || echo "")
           
@@ -60,7 +79,7 @@ jobs:
               aws ec2 wait instance-terminated --instance-ids $instance_id 2>/dev/null || echo "Instance $instance_id termination wait failed, continuing..."
             done
           else
-            echo "No workflow-specific instances found"
+            echo "No workflow-specific instances found for run ID ${{ steps.workflow_run.outputs.run_id }}"
           fi
           
           echo "EC2 instance cleanup completed"
@@ -70,9 +89,9 @@ jobs:
           echo "=== TARGETED CLEANUP - SECURITY GROUPS ==="
           echo "Checking for workflow-specific security groups..."
           
-          # Get list of security groups tagged with our workflow identifier
+          # Get list of security groups tagged with our workflow identifier and specific run ID
           sg_list=$(aws ec2 describe-security-groups \
-            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" "Name=tag:WorkflowRunID,Values=${{ steps.workflow_run.outputs.run_id }}" \
             --query 'SecurityGroups[].GroupId' \
             --output text 2>/dev/null || echo "")
           
@@ -83,7 +102,7 @@ jobs:
               aws ec2 delete-security-group --group-id $sg_id 2>/dev/null || echo "Failed to delete security group $sg_id, continuing..."
             done
           else
-            echo "No workflow-specific security groups found"
+            echo "No workflow-specific security groups found for run ID ${{ steps.workflow_run.outputs.run_id }}"
           fi
           
           echo "Security group cleanup completed"
@@ -93,9 +112,9 @@ jobs:
           echo "=== TARGETED CLEANUP - SUBNETS ==="
           echo "Checking for workflow-specific subnets..."
           
-          # Get list of subnets tagged with our workflow identifier
+          # Get list of subnets tagged with our workflow identifier and specific run ID
           subnet_list=$(aws ec2 describe-subnets \
-            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" "Name=tag:WorkflowRunID,Values=${{ steps.workflow_run.outputs.run_id }}" \
             --query 'Subnets[].SubnetId' \
             --output text 2>/dev/null || echo "")
           
@@ -106,7 +125,7 @@ jobs:
               aws ec2 delete-subnet --subnet-id $subnet_id 2>/dev/null || echo "Failed to delete subnet $subnet_id, continuing..."
             done
           else
-            echo "No workflow-specific subnets found"
+            echo "No workflow-specific subnets found for run ID ${{ steps.workflow_run.outputs.run_id }}"
           fi
           
           echo "Subnet cleanup completed"
@@ -116,9 +135,9 @@ jobs:
           echo "=== TARGETED CLEANUP - ROUTE TABLES ==="
           echo "Checking for workflow-specific route tables..."
           
-          # Get list of route tables tagged with our workflow identifier
+          # Get list of route tables tagged with our workflow identifier and specific run ID
           rt_list=$(aws ec2 describe-route-tables \
-            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" "Name=tag:WorkflowRunID,Values=${{ steps.workflow_run.outputs.run_id }}" \
             --query 'RouteTables[].RouteTableId' \
             --output text 2>/dev/null || echo "")
           
@@ -129,7 +148,7 @@ jobs:
               aws ec2 delete-route-table --route-table-id $rt_id 2>/dev/null || echo "Failed to delete route table $rt_id, continuing..."
             done
           else
-            echo "No workflow-specific route tables found"
+            echo "No workflow-specific route tables found for run ID ${{ steps.workflow_run.outputs.run_id }}"
           fi
           
           echo "Route table cleanup completed"
@@ -139,9 +158,9 @@ jobs:
           echo "=== TARGETED CLEANUP - INTERNET GATEWAYS ==="
           echo "Checking for workflow-specific internet gateways..."
           
-          # Get list of internet gateways tagged with our workflow identifier
+          # Get list of internet gateways tagged with our workflow identifier and specific run ID
           igw_list=$(aws ec2 describe-internet-gateways \
-            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" "Name=tag:WorkflowRunID,Values=${{ steps.workflow_run.outputs.run_id }}" \
             --query 'InternetGateways[].InternetGatewayId' \
             --output text 2>/dev/null || echo "")
           
@@ -165,7 +184,7 @@ jobs:
               aws ec2 delete-internet-gateway --internet-gateway-id $igw_id 2>/dev/null || echo "Failed to delete IGW $igw_id, continuing..."
             done
           else
-            echo "No workflow-specific internet gateways found"
+            echo "No workflow-specific internet gateways found for run ID ${{ steps.workflow_run.outputs.run_id }}"
           fi
           
           echo "Internet gateway cleanup completed"
@@ -175,9 +194,9 @@ jobs:
           echo "=== TARGETED CLEANUP - VPCS ==="
           echo "Cleaning up only workflow-specific VPCs..."
           
-          # Get list of VPCs tagged with our workflow identifier
+          # Get list of VPCs tagged with our workflow identifier and specific run ID
           vpc_list=$(aws ec2 describe-vpcs \
-            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" "Name=tag:WorkflowRunID,Values=${{ steps.workflow_run.outputs.run_id }}" \
             --query 'Vpcs[].VpcId' \
             --output text 2>/dev/null || echo "")
           
@@ -188,7 +207,7 @@ jobs:
               aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "Failed to delete VPC $vpc_id, continuing..."
             done
           else
-            echo "No workflow-specific VPCs found"
+            echo "No workflow-specific VPCs found for run ID ${{ steps.workflow_run.outputs.run_id }}"
           fi
           
           echo "VPC cleanup completed"
@@ -197,14 +216,14 @@ jobs:
         run: |
           echo "=== TARGETED CLEANUP SUMMARY ==="
           echo "All targeted cleanup operations completed!"
-          echo "Only resources tagged with 'ManagedBy=hai-ci-workflow' were cleaned up."
-          echo "Existing resources not created by this workflow were preserved."
+          echo "Only resources tagged with 'ManagedBy=hai-ci-workflow' and 'WorkflowRunID=${{ steps.workflow_run.outputs.run_id }}' were cleaned up."
+          echo "Existing resources not created by this specific workflow run were preserved."
           echo ""
-          echo "Resources cleaned up:"
-          echo "- EC2 instances with ManagedBy=hai-ci-workflow tag"
-          echo "- Security groups with ManagedBy=hai-ci-workflow tag"
-          echo "- Subnets with ManagedBy=hai-ci-workflow tag"
-          echo "- Route tables with ManagedBy=hai-ci-workflow tag"
-          echo "- Internet gateways with ManagedBy=hai-ci-workflow tag"
-          echo "- VPCs with ManagedBy=hai-ci-workflow tag"
+          echo "Resources cleaned up from workflow run ${{ steps.workflow_run.outputs.run_id }}:"
+          echo "- EC2 instances with ManagedBy=hai-ci-workflow and WorkflowRunID=${{ steps.workflow_run.outputs.run_id }} tags"
+          echo "- Security groups with ManagedBy=hai-ci-workflow and WorkflowRunID=${{ steps.workflow_run.outputs.run_id }} tags"
+          echo "- Subnets with ManagedBy=hai-ci-workflow and WorkflowRunID=${{ steps.workflow_run.outputs.run_id }} tags"
+          echo "- Route tables with ManagedBy=hai-ci-workflow and WorkflowRunID=${{ steps.workflow_run.outputs.run_id }} tags"
+          echo "- Internet gateways with ManagedBy=hai-ci-workflow and WorkflowRunID=${{ steps.workflow_run.outputs.run_id }} tags"
+          echo "- VPCs with ManagedBy=hai-ci-workflow and WorkflowRunID=${{ steps.workflow_run.outputs.run_id }} tags"
           echo "- Key pairs: hai-ci-ec2-user-key" 

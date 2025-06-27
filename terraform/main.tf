@@ -10,6 +10,13 @@ variable "windows_password" {
   default     = "TemporaryPassword123!"  # Default password if not provided
 }
 
+# Variable for workflow run ID
+variable "workflow_run_id" {
+  description = "Unique ID for the current workflow run"
+  type        = string
+  default     = "manual-run"  # Default for manual runs
+}
+
 # Get all VPCs to find an existing one
 data "aws_vpcs" "all" {}
 
@@ -28,6 +35,7 @@ resource "aws_vpc" "main" {
     Name = "hai-ci-vpc"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -101,6 +109,7 @@ resource "aws_subnet" "main" {
     Name = "hai-ci-subnet"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -122,6 +131,7 @@ resource "aws_internet_gateway" "main" {
     Name = "hai-ci-igw"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -143,6 +153,7 @@ resource "aws_route_table" "main" {
     Name = "hai-ci-rt"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -190,6 +201,7 @@ resource "aws_security_group" "main" {
     Name = "hai-ci-sg"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -200,6 +212,7 @@ resource "aws_key_pair" "ec2_user" {
   tags = {
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -290,6 +303,7 @@ resource "aws_instance" "linux" {
     Name = "hai-linux-ci"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 
@@ -370,6 +384,7 @@ resource "aws_instance" "windows" {
     Environment = "ci-testing"
     OS = "Windows"
     OSVersion = "Server2022"
+    WorkflowRunID = var.workflow_run_id
   }
 }
 

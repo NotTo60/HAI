@@ -122,7 +122,7 @@ jobs:
           cd terraform
           echo "Changed to terraform directory: $(pwd)"
           terraform init
-          terraform apply -auto-approve
+          terraform apply -auto-approve -var="workflow_run_id=${{ github.run_id }}"
 
       - name: Output VM IPs
         id: tf_outputs
