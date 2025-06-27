@@ -41,14 +41,18 @@ try {
     } else {
         Write-Host "TestShare is not accessible, trying alternative methods..."
         
-        # Try to enumerate shares using net view
-        Write-Host "Trying to enumerate shares using net view..."
-        $netViewOutput = net view "\\$TargetIP" 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "Successfully enumerated shares:"
-            Write-Host $netViewOutput
+        # Try to enumerate shares using net view only if on Windows
+        if ($IsWindows) {
+            Write-Host "Trying to enumerate shares using net view..."
+            $netViewOutput = net view "\\$TargetIP" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Successfully enumerated shares:"
+                Write-Host $netViewOutput
+            } else {
+                Write-Host "Could not enumerate shares with net view"
+            }
         } else {
-            Write-Host "Could not enumerate shares with net view"
+            Write-Host "Skipping net view: not running on Windows"
         }
         
         # Try to access C$ share as fallback
