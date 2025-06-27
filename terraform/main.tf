@@ -4,17 +4,16 @@ provider "aws" {
 
 # Use existing VPC instead of creating new one
 data "aws_vpc" "existing" {
-  # You can specify by ID, CIDR block, or tags
-  # Option 1: By VPC ID (most specific)
-  # id = "vpc-12345678"
+  # Use the default VPC (most reliable for CI)
+  default = true
   
-  # Option 2: By CIDR block
-  cidr_block = "10.0.0.0/16"
-  
-  # Option 3: By tags (recommended for CI)
+  # Alternative: Use specific VPC by tags
   # tags = {
   #   Name = "default"
   # }
+  
+  # Alternative: Use specific VPC by ID
+  # id = "vpc-12345678"
 }
 
 # Use existing subnet instead of creating new one
