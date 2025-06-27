@@ -145,6 +145,10 @@ jobs:
           echo "SSH key exists: $(ls -la id_rsa)"
           echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
           
+          # Install dependencies first
+          echo "=== INSTALLING DEPENDENCIES ==="
+          pip install paramiko>=2.7.0 impacket>=0.9.0 pytest>=6.0.0 pyyaml>=5.0 cryptography>=3.0 bcrypt>=3.0 pynacl>=1.0
+          
           # Try multiple installation methods
           echo "=== INSTALLING PACKAGE ==="
           
