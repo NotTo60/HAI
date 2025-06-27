@@ -12,14 +12,6 @@ variable "windows_password" {
 # Get all VPCs to find an existing one
 data "aws_vpcs" "all" {}
 
-# Get existing subnets to check for conflicts
-data "aws_subnets" "all" {
-  filter {
-    name   = "vpc-id"
-    values = [local.existing_vpc_id]
-  }
-}
-
 # Use existing VPC if available, otherwise create a new one
 locals {
   existing_vpc_id = length(data.aws_vpcs.all.ids) > 0 ? data.aws_vpcs.all.ids[0] : null
@@ -41,16 +33,97 @@ locals {
   vpc_id = local.existing_vpc_id != null ? local.existing_vpc_id : aws_vpc.main[0].id
 }
 
-# Create subnet in the VPC with a more unique CIDR to avoid conflicts
+# Get existing subnets in the VPC
+data "aws_subnets" "existing" {
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+}
+
+# Get details of existing subnets to check CIDR blocks
+data "aws_subnet" "existing" {
+  for_each = toset(data.aws_subnets.existing.ids)
+  id       = each.value
+}
+
+# Find an available CIDR block
+locals {
+  # Define possible CIDR blocks to try
+  possible_cidrs = [
+    "10.0.100.0/24",
+    "10.0.101.0/24", 
+    "10.0.102.0/24",
+    "10.0.103.0/24",
+    "10.0.104.0/24",
+    "10.0.105.0/24",
+    "10.0.106.0/24",
+    "10.0.107.0/24",
+    "10.0.108.0/24",
+    "10.0.109.0/24",
+    "10.0.110.0/24",
+    "10.0.200.0/24",
+    "10.0.201.0/24",
+    "10.0.202.0/24",
+    "10.0.203.0/24",
+    "10.0.204.0/24",
+    "10.0.205.0/24",
+    "10.0.206.0/24",
+    "10.0.207.0/24",
+    "10.0.208.0/24",
+    "10.0.209.0/24",
+    "10.0.210.0/24"
+  ]
+  
+  # Get existing CIDR blocks
+  existing_cidrs = [for subnet in data.aws_subnet.existing : subnet.cidr_block]
+  
+  # Find first available CIDR that doesn't conflict
+  available_cidr = [
+    for cidr in local.possible_cidrs : cidr
+    if !contains(local.existing_cidrs, cidr)
+  ][0]
+}
+
+# Create subnet in the VPC with an available CIDR
 resource "aws_subnet" "main" {
   vpc_id     = local.vpc_id
-  cidr_block = "10.0.200.0/24"  # Changed from 10.0.100.0/24 to avoid conflicts
+  cidr_block = local.available_cidr
   availability_zone = "us-east-1a"
   map_public_ip_on_launch = true
   
   tags = {
     Name = "hai-ci-subnet"
   }
+}
+
+# Create Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = local.vpc_id
+
+  tags = {
+    Name = "hai-ci-igw"
+  }
+}
+
+# Create Route Table
+resource "aws_route_table" "main" {
+  vpc_id = local.vpc_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = {
+    Name = "hai-ci-rt"
+  }
+}
+
+# Associate Route Table with Subnet
+resource "aws_route_table_association" "main" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.main.id
 }
 
 resource "aws_security_group" "main" {
@@ -95,7 +168,7 @@ resource "aws_key_pair" "main" {
 
 resource "aws_key_pair" "ec2_user" {
   key_name   = "hai-ci-ec2-user-key"
-  public_key = file("${path.module}/ec2_user_rsa.pub")
+  public_key = file("${path.module}/id_rsa.pub")
 }
 
 resource "aws_instance" "linux" {
