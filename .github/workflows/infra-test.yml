@@ -123,15 +123,10 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           PYTHONPATH: ${{ github.workspace }}
-          TEST_LINUX_HOST: ${{ secrets.TEST_LINUX_HOST }}
-          TEST_LINUX_USER: ${{ secrets.TEST_LINUX_USER }}
-          TEST_LINUX_PASS: ${{ secrets.TEST_LINUX_PASS }}
-          TEST_LINUX_PORT: ${{ secrets.TEST_LINUX_PORT }}
-          TEST_WINDOWS_HOST: ${{ secrets.TEST_WINDOWS_HOST }}
-          TEST_WINDOWS_USER: ${{ secrets.TEST_WINDOWS_USER }}
-          TEST_WINDOWS_PASS: ${{ secrets.TEST_WINDOWS_PASS }}
-          TEST_WINDOWS_PORT: ${{ secrets.TEST_WINDOWS_PORT }}
-        run: pytest tests/test_integration_real_servers.py
+        run: |
+          echo "PYTHONPATH=$PYTHONPATH"
+          export PYTHONPATH=${GITHUB_WORKSPACE}
+          pytest tests/test_integration_real_servers.py
 
       - name: Upload test logs
         if: always()
