@@ -112,11 +112,23 @@ jobs:
       - name: Run tests
         working-directory: ${{ github.workspace }}
         run: |
-          export PYTHONPATH="${GITHUB_WORKSPACE}:${PYTHONPATH}"
+          # Install the package in development mode
+          pip install -e .
+          
+          # Set PYTHONPATH explicitly
+          export PYTHONPATH="${GITHUB_WORKSPACE}"
+          
+          # Debug information
           echo "PYTHONPATH=$PYTHONPATH"
           echo "Current directory: $(pwd)"
           echo "Files in current directory: $(ls -la)"
           echo "Files in core directory: $(ls -la core/)"
+          echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
+          
+          # Test import
+          python -c "import core; print('Core module imported successfully')"
+          
+          # Run tests
           python -m pytest tests/test_integration_real_servers.py -v
 
       - name: Upload test logs
