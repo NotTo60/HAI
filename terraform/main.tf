@@ -98,13 +98,33 @@ resource "aws_subnet" "main" {
   }
 }
 
-# Create Internet Gateway
+# Get existing internet gateways in the VPC
+data "aws_internet_gateways" "existing" {
+  filter {
+    name   = "attachment.vpc-id"
+    values = [local.vpc_id]
+  }
+}
+
+# Use existing internet gateway if available, otherwise create a new one
+locals {
+  existing_igw_id = length(data.aws_internet_gateways.existing.ids) > 0 ? data.aws_internet_gateways.existing.ids[0] : null
+}
+
+# Create Internet Gateway only if no existing one is found
 resource "aws_internet_gateway" "main" {
+  count = local.existing_igw_id == null ? 1 : 0
+  
   vpc_id = local.vpc_id
 
   tags = {
     Name = "hai-ci-igw"
   }
+}
+
+# Use existing internet gateway or the newly created one
+locals {
+  igw_id = local.existing_igw_id != null ? local.existing_igw_id : aws_internet_gateway.main[0].id
 }
 
 # Create Route Table
@@ -113,7 +133,7 @@ resource "aws_route_table" "main" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+    gateway_id = local.igw_id
   }
 
   tags = {
@@ -193,7 +213,7 @@ resource "aws_instance" "windows" {
   associate_public_ip_address = true
   
   # User data to set Administrator password
-  user_data = base64encode(<<-EOF
+  user_data_base64 = base64encode(<<-EOF
     <powershell>
     # Set Administrator password
     $password = ConvertTo-SecureString "${var.windows_password}" -AsPlainText -Force
