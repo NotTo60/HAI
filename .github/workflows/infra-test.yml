@@ -204,7 +204,7 @@ jobs:
               echo "Port 22 is reachable, testing SSH..."
               
               # Try to detect the correct username by trying common ones
-              for username in ec2-user ubuntu admin; do
+              for username in ubuntu ec2-user admin; do
                 echo "Trying username: $username"
                 
                 # Test SSH with timeout and verbose output
