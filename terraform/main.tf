@@ -31,7 +31,7 @@ resource "aws_vpc" "main" {
 
 # Use existing VPC or the newly created one
 locals {
-  vpc_id = local.existing_vpc_id != null ? local.existing_vpc_id : aws_vpc.main[0].id
+  vpc_id = local.existing_vpc_id != null ? local.existing_vpc_id : aws_vpc.main.id
 }
 
 # Get existing subnets in the VPC
