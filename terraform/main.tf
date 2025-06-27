@@ -42,6 +42,19 @@ data "aws_subnets" "existing" {
   }
 }
 
+# Check if our specific subnet already exists
+data "aws_subnet" "existing_hai" {
+  count = 1
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "tag:Name"
+    values = ["hai-ci-subnet"]
+  }
+}
+
 # Get details of existing subnets to check CIDR blocks
 data "aws_subnet" "existing" {
   for_each = toset(data.aws_subnets.existing.ids)
@@ -76,18 +89,22 @@ locals {
     "10.0.210.0/24"
   ]
   
-  # Get existing CIDR blocks
-  existing_cidrs = [for subnet in data.aws_subnet.existing : subnet.cidr_block]
+  # Get existing CIDR blocks with error handling
+  existing_cidrs = try([
+    for subnet in data.aws_subnet.existing : subnet.cidr_block
+  ], [])
   
   # Find first available CIDR that doesn't conflict
-  available_cidr = [
+  available_cidr = try([
     for cidr in local.possible_cidrs : cidr
     if !contains(local.existing_cidrs, cidr)
-  ][0]
+  ][0], "10.0.250.0/24")  # Fallback CIDR if all others are taken
 }
 
-# Create subnet in the VPC with an available CIDR
+# Create subnet in the VPC with an available CIDR (only if it doesn't exist)
 resource "aws_subnet" "main" {
+  count = try(data.aws_subnet.existing_hai[0].id, null) == null ? 1 : 0
+  
   vpc_id     = local.vpc_id
   cidr_block = local.available_cidr
   availability_zone = "us-east-1a"
@@ -96,6 +113,11 @@ resource "aws_subnet" "main" {
   tags = {
     Name = "hai-ci-subnet"
   }
+}
+
+# Use existing subnet or the newly created one
+locals {
+  subnet_id = try(data.aws_subnet.existing_hai[0].id, aws_subnet.main[0].id)
 }
 
 # Get existing internet gateways in the VPC
@@ -144,7 +166,7 @@ resource "aws_route_table" "main" {
 
 # Associate Route Table with Subnet
 resource "aws_route_table_association" "main" {
-  subnet_id      = aws_subnet.main.id
+  subnet_id      = local.subnet_id
   route_table_id = aws_route_table.main.id
 }
 
@@ -196,7 +218,7 @@ resource "aws_key_pair" "ec2_user" {
 resource "aws_instance" "linux" {
   ami           = "ami-0c7217cdde317cfec" # Amazon Linux 2023 in us-east-1
   instance_type = "t3.micro"
-  subnet_id     = aws_subnet.main.id
+  subnet_id     = local.subnet_id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.ec2_user.key_name
   associate_public_ip_address = true
@@ -208,7 +230,7 @@ resource "aws_instance" "linux" {
 resource "aws_instance" "windows" {
   ami           = "ami-053b0d53c279acc90" # Windows Server 2019 Base in us-east-1
   instance_type = "t3.micro"
-  subnet_id     = aws_subnet.main.id
+  subnet_id     = local.subnet_id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
