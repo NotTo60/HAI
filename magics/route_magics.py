@@ -89,17 +89,19 @@ class RouteMagics(Magics):
         
         logger.info(f"Listing routes for host '{host}'")
         
-        # TODO: Implement actual route listing logic
-        # This would typically involve:
-        # 1. Loading server configuration
-        # 2. Finding all routes for the host
-        # 3. Displaying route information
+        # Get server from cache and list its routes
+        srv = servers_cache.get(host)
+        if not srv:
+            logger.warning(f"Host '{host}' not found in cache")
+            return []
         
-        # Placeholder response
-        routes_info = [
-            {"name": "via-gateway-A", "active": True, "hops": 1},
-            {"name": "via-vpn-B", "active": False, "hops": 2}
-        ]
+        routes_info = []
+        for route in srv.tunnel_routes:
+            routes_info.append({
+                "name": route.name,
+                "active": route.active,
+                "hops": len(route.hops) if hasattr(route, 'hops') else 0
+            })
         
         logger.info(f"Found {len(routes_info)} routes for host '{host}'")
         return routes_info
