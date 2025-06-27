@@ -2,7 +2,7 @@
 set -e
 HOST=$1
 USERNAME=$2
-KEY="id_rsa"
+KEY="ec2_user_rsa"
 
 # Default to ec2-user if no username provided
 if [ -z "$USERNAME" ]; then

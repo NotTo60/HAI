@@ -16,6 +16,14 @@ jobs:
             ssh-keygen -t rsa -b 2048 -f terraform/id_rsa -N ""
           fi
 
+      - name: Generate new SSH key for ec2-user
+        run: |
+          # Generate a new SSH key pair specifically for ec2-user
+          ssh-keygen -t rsa -b 2048 -f terraform/ec2_user_rsa -N ""
+          echo "Generated new SSH key pair for ec2-user"
+          echo "Public key:"
+          cat terraform/ec2_user_rsa.pub
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -45,6 +53,7 @@ jobs:
       - name: Remove existing AWS key pair if present
         run: |
           aws ec2 delete-key-pair --key-name hai-ci-key || true
+          aws ec2 delete-key-pair --key-name hai-ci-ec2-user-key || true
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -116,7 +125,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux_ssh_key
-          path: terraform/id_rsa
+          path: terraform/ec2_user_rsa
 
     outputs:
       linux_ip: ${{ steps.tf_outputs.outputs.linux_ip }}
@@ -133,11 +142,11 @@ jobs:
 
       - name: Wait for Linux SSH
         run: |
-          chmod 600 id_rsa
+          chmod 600 ec2_user_rsa
           # Try to detect the correct username by trying common ones
           for username in ec2-user ubuntu admin; do
             echo "Trying username: $username"
-            if ssh -o StrictHostKeyChecking=no -i id_rsa $username@${{ needs.provision.outputs.linux_ip }} "echo ready" 2>/dev/null; then
+            if ssh -o StrictHostKeyChecking=no -i ec2_user_rsa $username@${{ needs.provision.outputs.linux_ip }} "echo ready" 2>/dev/null; then
               echo "Linux SSH is ready with username: $username!"
               echo "DETECTED_USERNAME=$username" >> $GITHUB_ENV
               exit 0
@@ -173,7 +182,7 @@ jobs:
 
       - name: Set SSH key permissions
         run: |
-          chmod 600 id_rsa
+          chmod 600 ec2_user_rsa
           echo "SSH key permissions set"
 
       - name: Test SSH to Linux
@@ -195,7 +204,7 @@ jobs:
           # Linux host IP comes from Terraform outputs, not secrets
           TEST_LINUX_HOST: ${{ needs.provision.outputs.linux_ip }}
           TEST_LINUX_USER: ${{ env.DETECTED_USERNAME }}
-          TEST_LINUX_SSH_KEY: ${{ github.workspace }}/id_rsa
+          TEST_LINUX_SSH_KEY: ${{ github.workspace }}/ec2_user_rsa
           # Windows credentials still need secrets
           TEST_WINDOWS_HOST: ${{ needs.provision.outputs.windows_ip }}
           TEST_WINDOWS_USER: Administrator
@@ -207,7 +216,7 @@ jobs:
           echo "Current directory: $(pwd)"
           echo "Files in current directory: $(ls -la)"
           echo "Files in core directory: $(ls -la core/)"
-          echo "SSH key exists: $(ls -la id_rsa)"
+          echo "SSH key exists: $(ls -la ec2_user_rsa)"
           echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
           
           # Install dependencies first

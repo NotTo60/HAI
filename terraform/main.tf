@@ -93,12 +93,17 @@ resource "aws_key_pair" "main" {
   public_key = file("${path.module}/id_rsa.pub")
 }
 
+resource "aws_key_pair" "ec2_user" {
+  key_name   = "hai-ci-ec2-user-key"
+  public_key = file("${path.module}/ec2_user_rsa.pub")
+}
+
 resource "aws_instance" "linux" {
   ami           = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 in us-east-1
   instance_type = "t3.micro"
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
-  key_name      = aws_key_pair.main.key_name
+  key_name      = aws_key_pair.ec2_user.key_name
   associate_public_ip_address = true
   tags = {
     Name = "hai-linux-ci"
