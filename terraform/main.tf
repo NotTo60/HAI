@@ -203,10 +203,71 @@ resource "aws_key_pair" "ec2_user" {
   }
 }
 
+# Get latest Amazon Linux 2023 AMI
+
+data "aws_ami" "linux" {
+  most_recent = true
+  owners      = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Get latest Windows Server 2022 AMI
+
+data "aws_ami" "windows" {
+  most_recent = true
+  owners      = ["801119661308"] # Amazon's official Windows AMIs
+  filter {
+    name   = "name"
+    values = ["Windows_Server-2022-English-Full-Base-*"]
+  }
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+# Infer Linux username from AMI name
+locals {
+  linux_ami_name = data.aws_ami.linux.name
+  linux_user_map = {
+    "al2023"  = "ec2-user"
+    "amzn"    = "ec2-user"
+    "ubuntu"  = "ubuntu"
+    "centos"  = "centos"
+    "debian"  = "admin"
+    "rhel"    = "ec2-user"
+    "fedora"  = "fedora"
+  }
+  linux_ssh_user = lookup(local.linux_user_map, regex("^([a-z0-9]+)", local.linux_ami_name)[0], "ec2-user")
+}
+
 resource "aws_instance" "linux" {
   depends_on = [aws_key_pair.ec2_user]
   
-  ami           = "ami-0c7217cdde317cfec" # Amazon Linux 2023 in us-east-1
+  ami           = data.aws_ami.linux.id
   instance_type = "t3.micro"
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
@@ -233,7 +294,7 @@ resource "aws_instance" "linux" {
 }
 
 resource "aws_instance" "windows" {
-  ami           = "ami-0c1a7f89451184c8b" # User-specified Windows AMI in us-east-1
+  ami           = data.aws_ami.windows.id
   instance_type = "t3.small"  # Better for Windows Server
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
@@ -311,4 +372,8 @@ resource "null_resource" "check_windows_instance" {
   provisioner "local-exec" {
     command = "echo Windows instance created with IP: ${aws_instance.windows.public_ip}"
   }
+}
+
+output "linux_ssh_user" {
+  value = local.linux_ssh_user
 } 
