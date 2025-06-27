@@ -1,7 +1,6 @@
-name: Cleanup Infrastructure
+name: Standalone Infrastructure Cleanup
 
 on:
-  workflow_call:
   workflow_dispatch:
     inputs:
       force_cleanup:
@@ -14,7 +13,6 @@ jobs:
   cleanup:
     name: Cleanup Infrastructure
     runs-on: ubuntu-latest
-    if: always()
     steps:
       - uses: actions/checkout@v4
 
