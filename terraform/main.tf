@@ -2,6 +2,13 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# Variable for Windows password
+variable "windows_password" {
+  description = "Password for Windows Administrator user"
+  type        = string
+  sensitive   = true
+}
+
 # Get all VPCs to find an existing one
 data "aws_vpcs" "all" {}
 
@@ -97,6 +104,26 @@ resource "aws_instance" "windows" {
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
+  
+  # User data to set Administrator password
+  user_data = base64encode(<<-EOF
+    <powershell>
+    # Set Administrator password
+    $password = ConvertTo-SecureString "${var.windows_password}" -AsPlainText -Force
+    Set-LocalUser -Name "Administrator" -Password $password
+    
+    # Enable WinRM for remote management
+    Enable-PSRemoting -Force
+    Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
+    
+    # Configure SMB for file sharing
+    Enable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -All
+    
+    Write-Host "Windows instance configured successfully"
+    </powershell>
+    EOF
+  )
+  
   tags = {
     Name = "hai-windows-ci"
   }
