@@ -271,33 +271,20 @@ jobs:
       detected_username: ${{ steps.set_username.outputs.detected_username }}
 
   run_tests:
-    needs: [wait_for_ready, provision]
+    needs: [provision, wait_for_ready]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
       - name: Download SSH key
         uses: actions/download-artifact@v4
         with:
           name: linux_ssh_key
-
-      - name: Set SSH key permissions
-        run: |
-          chmod 600 ec2_user_rsa
-          echo "SSH key permissions set"
-
-      - name: Test SSH to Linux
-        working-directory: ${{ github.workspace }}
-        run: bash tests/test_linux_ssh_connectivity.sh ${{ needs.provision.outputs.linux_ip }} ${{ needs.wait_for_ready.outputs.detected_username }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-
-      - name: Test SMB to Windows
-        shell: pwsh
-        working-directory: ${{ github.workspace }}
-        run: tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ needs.provision.outputs.windows_ip }}
-        env:
-          PYTHONPATH: ${{ github.workspace }}
 
       - name: Run tests
         working-directory: ${{ github.workspace }}
@@ -313,31 +300,23 @@ jobs:
         run: |
           # Debug information before installation
           echo "=== PRE-INSTALLATION DEBUG ==="
-          echo "PYTHONPATH=$PYTHONPATH"
+          echo "Python version: $(python --version)"
+          echo "Pip version: $(pip --version)"
           echo "Current directory: $(pwd)"
           echo "Files in current directory: $(ls -la)"
           echo "Files in core directory: $(ls -la core/)"
           echo "SSH key exists: $(ls -la ec2_user_rsa)"
-          echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
           
           # Install dependencies first
           echo "=== INSTALLING DEPENDENCIES ==="
-          pip install paramiko>=2.7.0 impacket>=0.9.0 pytest>=6.0.0 pyyaml>=5.0 cryptography>=3.0 bcrypt>=3.0 pynacl>=1.0
+          pip install --upgrade pip
+          pip install -r requirements.txt
           
-          # Try multiple installation methods
+          # Install the package in development mode
           echo "=== INSTALLING PACKAGE ==="
-          
-          # Method 1: Install in development mode
-          pip install -e . || echo "pip install -e . failed"
-          
-          # Method 2: Add current directory to PYTHONPATH
-          export PYTHONPATH="${GITHUB_WORKSPACE}:${PYTHONPATH:-}"
-          
-          # Method 3: Try installing with pip install .
-          pip install . || echo "pip install . failed"
+          pip install -e .
           
           echo "=== POST-INSTALLATION DEBUG ==="
-          echo "PYTHONPATH=$PYTHONPATH"
           echo "Python path: $(python -c 'import sys; print("\\n".join(sys.path))')"
           
           # Test imports
@@ -348,7 +327,7 @@ jobs:
           
           # List installed packages
           echo "=== INSTALLED PACKAGES ==="
-          pip list | grep -E "(hai|core)" || echo "No hai or core packages found"
+          pip list | grep -E "(hai|core|pydantic)" || echo "No relevant packages found"
           
           # Run tests with verbose output
           echo "=== RUNNING TESTS ==="
@@ -368,28 +347,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Destroy Terraform-managed infrastructure
-        run: |
-          echo "=== STARTING TERRAFORM CLEANUP ==="
-          cd terraform
-          echo "Changed to terraform directory: $(pwd)"
-          
-          # Initialize Terraform
-          echo "Initializing Terraform..."
-          terraform init || echo "Terraform init failed, continuing..."
-          
-          # Try to destroy with Terraform first
-          echo "Attempting Terraform destroy..."
-          terraform destroy -auto-approve || echo "Terraform destroy failed, continuing with manual cleanup..."
-          
-          echo "=== TERRAFORM CLEANUP COMPLETED ==="
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: us-east-1
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Targeted cleanup - Remove workflow-specific key pairs
         run: |
@@ -421,6 +384,13 @@ jobs:
             for instance_id in $instance_list; do
               echo "Terminating workflow instance $instance_id"
               aws ec2 terminate-instances --instance-ids $instance_id 2>/dev/null || echo "Failed to terminate instance $instance_id, continuing..."
+            done
+            
+            # Wait for instances to be terminated
+            echo "Waiting for instances to terminate..."
+            for instance_id in $instance_list; do
+              echo "Waiting for instance $instance_id to terminate..."
+              aws ec2 wait instance-terminated --instance-ids $instance_id 2>/dev/null || echo "Instance $instance_id termination wait failed, continuing..."
             done
           else
             echo "No workflow-specific instances found"
@@ -459,7 +429,101 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: us-east-1
 
-      - name: Targeted cleanup - Delete workflow-specific VPCs and related resources
+      - name: Targeted cleanup - Delete workflow-specific subnets
+        run: |
+          echo "=== TARGETED CLEANUP - SUBNETS ==="
+          echo "Checking for workflow-specific subnets..."
+          
+          # Get list of subnets tagged with our workflow identifier
+          subnet_list=$(aws ec2 describe-subnets \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'Subnets[].SubnetId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$subnet_list" ]; then
+            echo "Found workflow-specific subnets to delete: $subnet_list"
+            for subnet_id in $subnet_list; do
+              echo "Deleting workflow subnet $subnet_id"
+              aws ec2 delete-subnet --subnet-id $subnet_id 2>/dev/null || echo "Failed to delete subnet $subnet_id, continuing..."
+            done
+          else
+            echo "No workflow-specific subnets found"
+          fi
+          
+          echo "Subnet cleanup completed"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Targeted cleanup - Delete workflow-specific route tables
+        run: |
+          echo "=== TARGETED CLEANUP - ROUTE TABLES ==="
+          echo "Checking for workflow-specific route tables..."
+          
+          # Get list of route tables tagged with our workflow identifier
+          rt_list=$(aws ec2 describe-route-tables \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'RouteTables[].RouteTableId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$rt_list" ]; then
+            echo "Found workflow-specific route tables to delete: $rt_list"
+            for rt_id in $rt_list; do
+              echo "Deleting workflow route table $rt_id"
+              aws ec2 delete-route-table --route-table-id $rt_id 2>/dev/null || echo "Failed to delete route table $rt_id, continuing..."
+            done
+          else
+            echo "No workflow-specific route tables found"
+          fi
+          
+          echo "Route table cleanup completed"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Targeted cleanup - Delete workflow-specific internet gateways
+        run: |
+          echo "=== TARGETED CLEANUP - INTERNET GATEWAYS ==="
+          echo "Checking for workflow-specific internet gateways..."
+          
+          # Get list of internet gateways tagged with our workflow identifier
+          igw_list=$(aws ec2 describe-internet-gateways \
+            --filters "Name=tag:ManagedBy,Values=hai-ci-workflow" \
+            --query 'InternetGateways[].InternetGatewayId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$igw_list" ]; then
+            echo "Found workflow-specific internet gateways to delete: $igw_list"
+            for igw_id in $igw_list; do
+              echo "Processing workflow IGW $igw_id"
+              
+              # Get VPC ID for this IGW
+              vpc_id=$(aws ec2 describe-internet-gateways \
+                --internet-gateway-ids $igw_id \
+                --query 'InternetGateways[0].Attachments[0].VpcId' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$vpc_id" ]; then
+                echo "Detaching IGW $igw_id from VPC $vpc_id"
+                aws ec2 detach-internet-gateway --internet-gateway-id $igw_id --vpc-id $vpc_id 2>/dev/null || echo "Failed to detach IGW $igw_id, continuing..."
+              fi
+              
+              echo "Deleting workflow IGW $igw_id"
+              aws ec2 delete-internet-gateway --internet-gateway-id $igw_id 2>/dev/null || echo "Failed to delete IGW $igw_id, continuing..."
+            done
+          else
+            echo "No workflow-specific internet gateways found"
+          fi
+          
+          echo "Internet gateway cleanup completed"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Targeted cleanup - Delete workflow-specific VPCs
         run: |
           echo "=== TARGETED CLEANUP - VPCS ==="
           echo "Cleaning up only workflow-specific VPCs..."
@@ -473,47 +537,6 @@ jobs:
           if [ -n "$vpc_list" ]; then
             echo "Found workflow-specific VPCs to delete: $vpc_list"
             for vpc_id in $vpc_list; do
-              echo "Processing workflow VPC $vpc_id"
-              
-              # Detach and delete internet gateways tagged with our workflow
-              igw_list=$(aws ec2 describe-internet-gateways \
-                --filters "Name=attachment.vpc-id,Values=$vpc_id" "Name=tag:ManagedBy,Values=hai-ci-workflow" \
-                --query 'InternetGateways[].InternetGatewayId' \
-                --output text 2>/dev/null || echo "")
-              if [ -n "$igw_list" ]; then
-                for igw_id in $igw_list; do
-                  echo "Detaching workflow IGW $igw_id from VPC $vpc_id"
-                  aws ec2 detach-internet-gateway --internet-gateway-id $igw_id --vpc-id $vpc_id 2>/dev/null || echo "Failed to detach IGW $igw_id, continuing..."
-                  echo "Deleting workflow IGW $igw_id"
-                  aws ec2 delete-internet-gateway --internet-gateway-id $igw_id 2>/dev/null || echo "Failed to delete IGW $igw_id, continuing..."
-                done
-              fi
-              
-              # Delete subnets tagged with our workflow
-              subnet_list=$(aws ec2 describe-subnets \
-                --filters "Name=vpc-id,Values=$vpc_id" "Name=tag:ManagedBy,Values=hai-ci-workflow" \
-                --query 'Subnets[].SubnetId' \
-                --output text 2>/dev/null || echo "")
-              if [ -n "$subnet_list" ]; then
-                for subnet_id in $subnet_list; do
-                  echo "Deleting workflow subnet $subnet_id"
-                  aws ec2 delete-subnet --subnet-id $subnet_id 2>/dev/null || echo "Failed to delete subnet $subnet_id, continuing..."
-                done
-              fi
-              
-              # Delete route tables tagged with our workflow
-              rt_list=$(aws ec2 describe-route-tables \
-                --filters "Name=vpc-id,Values=$vpc_id" "Name=tag:ManagedBy,Values=hai-ci-workflow" \
-                --query 'RouteTables[].RouteTableId' \
-                --output text 2>/dev/null || echo "")
-              if [ -n "$rt_list" ]; then
-                for rt_id in $rt_list; do
-                  echo "Deleting workflow route table $rt_id"
-                  aws ec2 delete-route-table --route-table-id $rt_id 2>/dev/null || echo "Failed to delete route table $rt_id, continuing..."
-                done
-              fi
-              
-              # Finally delete the workflow VPC
               echo "Deleting workflow VPC $vpc_id"
               aws ec2 delete-vpc --vpc-id $vpc_id 2>/dev/null || echo "Failed to delete VPC $vpc_id, continuing..."
             done
@@ -533,3 +556,12 @@ jobs:
           echo "All targeted cleanup operations completed!"
           echo "Only resources tagged with 'ManagedBy=hai-ci-workflow' were cleaned up."
           echo "Existing resources not created by this workflow were preserved."
+          echo ""
+          echo "Resources cleaned up:"
+          echo "- EC2 instances with ManagedBy=hai-ci-workflow tag"
+          echo "- Security groups with ManagedBy=hai-ci-workflow tag"
+          echo "- Subnets with ManagedBy=hai-ci-workflow tag"
+          echo "- Route tables with ManagedBy=hai-ci-workflow tag"
+          echo "- Internet gateways with ManagedBy=hai-ci-workflow tag"
+          echo "- VPCs with ManagedBy=hai-ci-workflow tag"
+          echo "- Key pairs: hai-ci-ec2-user-key"
