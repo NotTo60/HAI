@@ -205,7 +205,7 @@ jobs:
 
       - name: Test SSH to Linux
         working-directory: ${{ github.workspace }}
-        run: bash tests/test_linux_ssh_connectivity.sh ${{ needs.provision.outputs.linux_ip }} ${{ env.DETECTED_USERNAME }}
+        run: bash tests/test_linux_ssh_connectivity.sh ${{ needs.provision.outputs.linux_ip }} ${{ needs.wait_for_ready.outputs.detected_username }}
         env:
           PYTHONPATH: ${{ github.workspace }}
 
@@ -279,15 +279,75 @@ jobs:
           path: logs/
 
   cleanup:
-    needs: run_tests
+    needs: [provision, run_tests]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - uses: actions/checkout@v4
-      - name: Destroy Infra
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Destroy Terraform-managed infrastructure
         run: |
           cd terraform
+          terraform init
           terraform destroy -auto-approve
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Remove leftover key pairs
+        run: |
+          aws ec2 delete-key-pair --key-name hai-ci-key || true
+          aws ec2 delete-key-pair --key-name hai-ci-ec2-user-key || true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Delete unattached network interfaces (ENIs)
+        run: |
+          echo "Checking for unattached ENIs..."
+          for eni_id in $(aws ec2 describe-network-interfaces \
+            --filters Name=status,Values=available \
+            --query 'NetworkInterfaces[].NetworkInterfaceId' \
+            --output text); do
+            echo "Deleting ENI $eni_id"
+            aws ec2 delete-network-interface --network-interface-id $eni_id || true
+          done
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
+      - name: Delete leftover VPCs (dangerous!)
+        run: |
+          echo "Cleaning up non-default VPCs..."
+          for vpc_id in $(aws ec2 describe-vpcs --query 'Vpcs[?IsDefault==`false`].VpcId' --output text); do
+            echo "Deleting VPC $vpc_id"
+            # Detach and delete internet gateways
+            for igw_id in $(aws ec2 describe-internet-gateways --filters Name=attachment.vpc-id,Values=$vpc_id --query 'InternetGateways[].InternetGatewayId' --output text); do
+              aws ec2 detach-internet-gateway --internet-gateway-id $igw_id --vpc-id $vpc_id || true
+              aws ec2 delete-internet-gateway --internet-gateway-id $igw_id || true
+            done
+            # Delete subnets
+            for subnet_id in $(aws ec2 describe-subnets --filters Name=vpc-id,Values=$vpc_id --query 'Subnets[].SubnetId' --output text); do
+              aws ec2 delete-subnet --subnet-id $subnet_id || true
+            done
+            # Delete route tables (skip the main one)
+            for rt_id in $(aws ec2 describe-route-tables --filters Name=vpc-id,Values=$vpc_id --query 'RouteTables[?Associations[?Main==`false`]].RouteTableId' --output text); do
+              aws ec2 delete-route-table --route-table-id $rt_id || true
+            done
+            # Delete security groups (skip default)
+            for sg_id in $(aws ec2 describe-security-groups --filters Name=vpc-id,Values=$vpc_id --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text); do
+              aws ec2 delete-security-group --group-id $sg_id || true
+            done
+            # Finally delete the VPC
+            aws ec2 delete-vpc --vpc-id $vpc_id || true
+          done
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
