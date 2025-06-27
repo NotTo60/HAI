@@ -145,7 +145,6 @@ jobs:
     outputs:
       linux_ip: ${{ steps.tf_outputs.outputs.linux_ip }}
       windows_ip: ${{ steps.tf_outputs.outputs.windows_ip }}
-      detected_username: ${{ env.DETECTED_USERNAME }}
 
   wait_for_ready:
     needs: provision
@@ -184,6 +183,9 @@ jobs:
             echo "Waiting for SMB..."; sleep 10;
           done
           echo "ERROR: Windows SMB not reachable after 30 seconds."; exit 1
+
+    outputs:
+      detected_username: ${{ env.DETECTED_USERNAME }}
 
   run_tests:
     needs: [wait_for_ready, provision]
