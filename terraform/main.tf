@@ -314,6 +314,10 @@ resource "aws_instance" "windows" {
     # Create the share folder and set NTFS permissions
     $sharePath = "C:\TestShare"
     New-Item -ItemType Directory -Path $sharePath -Force | Out-Null
+    
+    # Create a test file in the share
+    "This is a test file for SMB connectivity" | Out-File -FilePath "$sharePath\test.txt" -Encoding ASCII
+    
     # Grant 'Everyone' full control NTFS permissions
     icacls $sharePath /grant Everyone:(OI)(CI)F /T
 
@@ -326,9 +330,27 @@ resource "aws_instance" "windows" {
     New-NetFirewallRule -DisplayName "Allow SMB Inbound" -Direction Inbound -LocalPort 445 -Protocol TCP -Action Allow -Profile Any
     New-NetFirewallRule -DisplayName "Allow RDP Inbound" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any
 
-    # (Optional) Disable SMB signing requirement for easier Linux access
+    # Disable SMB signing requirement for easier access
     Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
-
+    Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force
+    Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
+    
+    # Enable guest access for easier testing
+    Set-SmbServerConfiguration -EnableGuestAccess $true -Force
+    
+    # Restart SMB service to apply changes
+    Restart-Service -Name "LanmanServer" -Force
+    
+    # Wait a moment for services to restart
+    Start-Sleep -Seconds 10
+    
+    # Verify SMB configuration
+    Write-Host "SMB Server Configuration:"
+    Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, RequireSecuritySignature, EnableGuestAccess
+    
+    Write-Host "SMB Shares:"
+    Get-SmbShare
+    
     Write-Host "Windows instance configured successfully"
     </powershell>
     EOF
