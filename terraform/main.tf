@@ -233,11 +233,14 @@ resource "aws_instance" "linux" {
 }
 
 resource "aws_instance" "windows" {
-  ami           = "ami-053b0d53c279acc90" # Windows Server 2019 Base in us-east-1
-  instance_type = "t3.micro"
+  ami           = "ami-0c2b8ca1dad447f8a" # Windows Server 2022 Base in us-east-1
+  instance_type = "t3.small"  # Better for Windows Server
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   associate_public_ip_address = true
+  
+  # Ensure this is recognized as a Windows instance
+  get_password_data = true
   
   # User data to set Administrator password and configure SMB
   user_data_base64 = base64encode(<<-EOF
@@ -289,6 +292,8 @@ resource "aws_instance" "windows" {
     Name = "hai-windows-ci"
     ManagedBy = "hai-ci-workflow"
     Environment = "ci-testing"
+    OS = "Windows"
+    OSVersion = "Server2022"
   }
 }
 
