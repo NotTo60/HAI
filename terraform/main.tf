@@ -204,6 +204,8 @@ resource "aws_key_pair" "ec2_user" {
 }
 
 resource "aws_instance" "linux" {
+  depends_on = [aws_key_pair.ec2_user]
+  
   ami           = "ami-0c7217cdde317cfec" # Amazon Linux 2023 in us-east-1
   instance_type = "t3.micro"
   subnet_id     = aws_subnet.main.id
