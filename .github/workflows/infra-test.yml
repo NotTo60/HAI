@@ -145,6 +145,7 @@ jobs:
     outputs:
       linux_ip: ${{ steps.tf_outputs.outputs.linux_ip }}
       windows_ip: ${{ steps.tf_outputs.outputs.windows_ip }}
+      detected_username: ${{ env.DETECTED_USERNAME }}
 
   wait_for_ready:
     needs: provision
@@ -218,7 +219,7 @@ jobs:
         env:
           # Linux host IP comes from Terraform outputs, not secrets
           TEST_LINUX_HOST: ${{ needs.provision.outputs.linux_ip }}
-          TEST_LINUX_USER: ${{ env.DETECTED_USERNAME }}
+          TEST_LINUX_USER: ${{ needs.wait_for_ready.outputs.detected_username }}
           TEST_LINUX_SSH_KEY: ${{ github.workspace }}/ec2_user_rsa
           # Windows credentials still need secrets
           TEST_WINDOWS_HOST: ${{ needs.provision.outputs.windows_ip }}
