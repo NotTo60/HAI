@@ -54,9 +54,7 @@ class ThreadedOperations:
     
     def __init__(self, max_workers: int = DEFAULT_MAX_WORKERS):
         self.max_workers = max_workers
-        self._lock = threading.Lock()
         self.logger = get_enhanced_logger("threaded_operations")
-        self.state_manager = get_state_manager()
     
     def run_command_on_servers(
         self, 
