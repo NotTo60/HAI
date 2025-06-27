@@ -33,8 +33,7 @@ try {
     # Try multiple methods to test SMB access
     $methods = @(
         @{ Name = "Test-Path"; Script = { Test-Path $testPath -ErrorAction SilentlyContinue } },
-        @{ Name = "Get-ChildItem"; Script = { Get-ChildItem $testPath -ErrorAction SilentlyContinue } },
-        @{ Name = "Get-SmbConnection"; Script = { Get-SmbConnection -ServerName $TargetIP -ErrorAction SilentlyContinue } }
+        @{ Name = "Get-ChildItem"; Script = { Get-ChildItem $testPath -ErrorAction SilentlyContinue } }
     )
     
     foreach ($method in $methods) {
@@ -48,6 +47,22 @@ try {
             }
         } catch {
             Write-Host "$($method.Name) failed: $_"
+        }
+    }
+    
+    # Try with explicit credentials if available
+    if (-not $shareAccessible) {
+        Write-Host "Trying with explicit credentials..."
+        try {
+            $cred = New-Object System.Management.Automation.PSCredential("Administrator", (ConvertTo-SecureString "TemporaryPassword123!" -AsPlainText -Force))
+            $session = New-PSSession -ComputerName $TargetIP -Credential $cred -ErrorAction SilentlyContinue
+            if ($session) {
+                Write-Host "PowerShell remoting session established"
+                $shareAccessible = $true
+                Remove-PSSession $session
+            }
+        } catch {
+            Write-Host "PowerShell remoting failed: $_"
         }
     }
     

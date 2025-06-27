@@ -320,10 +320,11 @@ resource "aws_instance" "windows" {
     
     # Grant 'Everyone' full control NTFS permissions
     icacls $sharePath /grant Everyone:(OI)(CI)F /T
+    icacls $sharePath /grant "NT AUTHORITY\ANONYMOUS LOGON":(OI)(CI)F /T
 
     # Create the SMB share and grant 'Everyone' full access
     if (-not (Get-SmbShare -Name "TestShare" -ErrorAction SilentlyContinue)) {
-      New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Everyone"
+      New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Everyone" -CachingMode None
     }
 
     # Configure Windows Firewall for SMB and RDP
@@ -338,18 +339,25 @@ resource "aws_instance" "windows" {
     # Enable guest access for easier testing
     Set-SmbServerConfiguration -EnableGuestAccess $true -Force
     
+    # Enable anonymous access
+    Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force
+    
     # Restart SMB service to apply changes
     Restart-Service -Name "LanmanServer" -Force
+    Restart-Service -Name "LanmanWorkstation" -Force
     
     # Wait a moment for services to restart
-    Start-Sleep -Seconds 10
+    Start-Sleep -Seconds 15
     
     # Verify SMB configuration
     Write-Host "SMB Server Configuration:"
-    Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, RequireSecuritySignature, EnableGuestAccess
+    Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, RequireSecuritySignature, EnableGuestAccess, RestrictNullSessAccess
     
     Write-Host "SMB Shares:"
     Get-SmbShare
+    
+    Write-Host "SMB Share Permissions:"
+    Get-SmbShareAccess -Name "TestShare"
     
     Write-Host "Windows instance configured successfully"
     </powershell>
