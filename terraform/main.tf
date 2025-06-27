@@ -99,7 +99,8 @@ resource "aws_subnet" "main" {
 }
 
 # Get existing internet gateways in the VPC
-data "aws_internet_gateways" "existing" {
+data "aws_internet_gateway" "existing" {
+  count = 1
   filter {
     name   = "attachment.vpc-id"
     values = [local.vpc_id]
@@ -108,7 +109,7 @@ data "aws_internet_gateways" "existing" {
 
 # Use existing internet gateway if available, otherwise create a new one
 locals {
-  existing_igw_id = length(data.aws_internet_gateways.existing.ids) > 0 ? data.aws_internet_gateways.existing.ids[0] : null
+  existing_igw_id = try(data.aws_internet_gateway.existing[0].id, null)
 }
 
 # Create Internet Gateway only if no existing one is found
