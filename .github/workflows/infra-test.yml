@@ -155,20 +155,79 @@ jobs:
         with:
           name: linux_ssh_key
 
+      - name: Debug instance and network status
+        run: |
+          echo "=== INSTANCE AND NETWORK DEBUG ==="
+          echo "Linux IP: ${{ needs.provision.outputs.linux_ip }}"
+          echo "Windows IP: ${{ needs.provision.outputs.windows_ip }}"
+          
+          # Check instance status
+          echo "Checking Linux instance status..."
+          aws ec2 describe-instances \
+            --filters "Name=ip-address,Values=${{ needs.provision.outputs.linux_ip }}" \
+            --query 'Reservations[].Instances[].{InstanceId:InstanceId,State:State.Name,PublicIP:PublicIpAddress,PrivateIP:PrivateIpAddress}' \
+            --output table || echo "Failed to get instance info"
+          
+          # Check security groups
+          echo "Checking security groups..."
+          aws ec2 describe-instances \
+            --filters "Name=ip-address,Values=${{ needs.provision.outputs.linux_ip }}" \
+            --query 'Reservations[].Instances[].SecurityGroups[].{GroupId:GroupId,GroupName:GroupName}' \
+            --output table || echo "Failed to get security group info"
+          
+          # Check route table
+          echo "Checking route table..."
+          aws ec2 describe-route-tables \
+            --filters "Name=association.subnet-id,Values=*" \
+            --query 'RouteTables[].Routes[?GatewayId!=`null`].{GatewayId:GatewayId,DestinationCidrBlock:DestinationCidrBlock}' \
+            --output table || echo "Failed to get route table info"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+
       - name: Wait for Linux SSH
         run: |
           chmod 600 ec2_user_rsa
-          # Try to detect the correct username by trying common ones
-          for username in ec2-user ubuntu admin; do
-            echo "Trying username: $username"
-            if ssh -o StrictHostKeyChecking=no -i ec2_user_rsa $username@${{ needs.provision.outputs.linux_ip }} "echo ready" 2>/dev/null; then
-              echo "Linux SSH is ready with username: $username!"
-              echo "DETECTED_USERNAME=$username" >> $GITHUB_ENV
-              exit 0
+          echo "=== SSH CONNECTIVITY DEBUG ==="
+          echo "Target IP: ${{ needs.provision.outputs.linux_ip }}"
+          echo "SSH key exists: $(ls -la ec2_user_rsa)"
+          echo "SSH key permissions: $(ls -la ec2_user_rsa | awk '{print $1}')"
+          
+          # Wait for instance to be ready (longer timeout)
+          echo "Waiting for instance to be ready..."
+          for attempt in {1..30}; do
+            echo "Attempt $attempt/30: Testing SSH connectivity..."
+            
+            # Test basic connectivity first
+            if nc -z -w 5 ${{ needs.provision.outputs.linux_ip }} 22; then
+              echo "Port 22 is reachable, testing SSH..."
+              
+              # Try to detect the correct username by trying common ones
+              for username in ec2-user ubuntu admin; do
+                echo "Trying username: $username"
+                
+                # Test SSH with timeout and verbose output
+                if timeout 10 ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes -i ec2_user_rsa $username@${{ needs.provision.outputs.linux_ip }} "echo ready" 2>&1; then
+                  echo "Linux SSH is ready with username: $username!"
+                  echo "DETECTED_USERNAME=$username" >> $GITHUB_ENV
+                  exit 0
+                else
+                  echo "Username $username failed, trying next..."
+                fi
+              done
+            else
+              echo "Port 22 not reachable yet..."
             fi
-            echo "Username $username failed, trying next..."
+            
+            echo "Waiting 10 seconds before next attempt..."
+            sleep 10
           done
-          echo "ERROR: Linux SSH not reachable with any username after 30 seconds."; exit 1
+          
+          echo "ERROR: Linux SSH not reachable after 5 minutes."
+          echo "Final connectivity test:"
+          nc -zv ${{ needs.provision.outputs.linux_ip }} 22 || echo "Port 22 still not reachable"
+          exit 1
 
       - name: Set output for detected username
         id: set_username
