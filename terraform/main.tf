@@ -356,6 +356,23 @@ resource "aws_instance" "windows" {
     # Enable anonymous access
     Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force
     
+    # Configure additional SMB settings for better compatibility
+    Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force
+    Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
+    Set-SmbServerConfiguration -EnableSMB3Protocol $true -Force
+    
+    # Disable security features that might block anonymous access
+    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
+    Set-SmbServerConfiguration -EnableGuestAccess $true -Force
+    Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force
+    Set-SmbServerConfiguration -RestrictNullSessPipes $false -Force
+    Set-SmbServerConfiguration -RestrictNullSessShares $false -Force
+    
+    # Configure registry settings for anonymous access
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "RestrictNullSessAccess" -Value 0 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionShares" -Value "TestShare" -Type String -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionPipes" -Value "spoolss" -Type String -Force
+    
     # Restart SMB service to apply changes
     Restart-Service -Name "LanmanServer" -Force
     Restart-Service -Name "LanmanWorkstation" -Force
@@ -365,13 +382,16 @@ resource "aws_instance" "windows" {
     
     # Verify SMB configuration
     Write-Host "SMB Server Configuration:"
-    Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, RequireSecuritySignature, EnableGuestAccess, RestrictNullSessAccess
+    Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, EnableSMB3Protocol, RequireSecuritySignature, EnableGuestAccess, RestrictNullSessAccess
     
     Write-Host "SMB Shares:"
     Get-SmbShare
     
     Write-Host "SMB Share Permissions:"
     Get-SmbShareAccess -Name "TestShare"
+    
+    Write-Host "Registry Settings:"
+    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" | Select-Object RestrictNullSessAccess, NullSessionShares, NullSessionPipes
     
     Write-Host "Windows instance configured successfully"
     </powershell>

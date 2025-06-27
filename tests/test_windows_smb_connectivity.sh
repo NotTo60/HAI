@@ -56,25 +56,75 @@ fi
 echo "Testing SMB connectivity with smbclient..."
 
 # Try to list shares anonymously
-if smbclient -L "//$TARGET_IP" -U "" -N 2>/dev/null | grep -q "TestShare\|C\$"; then
+echo "Attempting anonymous SMB enumeration..."
+smbclient -L "//$TARGET_IP" -U "" -N 2>&1 > /tmp/smb_anonymous.txt
+
+if grep -q "TestShare\|C\$" /tmp/smb_anonymous.txt; then
     echo "✅ SMB connectivity successful - shares found"
     echo "WINDOWS SMB CONNECTIVITY OK"
+    cat /tmp/smb_anonymous.txt
+    rm -f /tmp/smb_anonymous.txt
     exit 0
 else
-    echo "❌ SMB connectivity failed - no shares found"
+    echo "❌ Anonymous SMB enumeration failed"
     echo ""
-    echo "Debugging information:"
-    echo "- Target IP: $TARGET_IP"
-    echo "- Port 445: Reachable"
-    echo "- SMB enumeration: Failed"
+    echo "Anonymous enumeration output:"
+    cat /tmp/smb_anonymous.txt
     echo ""
-    echo "Trying to list all available shares..."
-    smbclient -L "//$TARGET_IP" -U "" -N 2>&1 || echo "Failed to enumerate shares"
-    echo ""
-    echo "Possible issues:"
-    echo "1. Windows Firewall blocking SMB"
-    echo "2. SMB service not running"
-    echo "3. Authentication required (anonymous access disabled)"
-    echo "4. SMB version compatibility issues"
-    exit 1
+    
+    # Try with guest access
+    echo "Attempting guest SMB enumeration..."
+    smbclient -L "//$TARGET_IP" -U "guest" -N 2>&1 > /tmp/smb_guest.txt
+    
+    if grep -q "TestShare\|C\$" /tmp/smb_guest.txt; then
+        echo "✅ SMB connectivity successful with guest access - shares found"
+        echo "WINDOWS SMB CONNECTIVITY OK"
+        cat /tmp/smb_guest.txt
+        rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt
+        exit 0
+    else
+        echo "❌ Guest SMB enumeration also failed"
+        echo ""
+        echo "Guest enumeration output:"
+        cat /tmp/smb_guest.txt
+        echo ""
+        
+        # Try with Administrator credentials (if we have them)
+        echo "Attempting Administrator SMB enumeration..."
+        smbclient -L "//$TARGET_IP" -U "Administrator" -N 2>&1 > /tmp/smb_admin.txt
+        
+        if grep -q "TestShare\|C\$" /tmp/smb_admin.txt; then
+            echo "✅ SMB connectivity successful with Administrator access - shares found"
+            echo "WINDOWS SMB CONNECTIVITY OK"
+            cat /tmp/smb_admin.txt
+            rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt
+            exit 0
+        else
+            echo "❌ All SMB enumeration attempts failed"
+            echo ""
+            echo "Administrator enumeration output:"
+            cat /tmp/smb_admin.txt
+            echo ""
+            
+            echo "Debugging information:"
+            echo "- Target IP: $TARGET_IP"
+            echo "- Port 445: Reachable"
+            echo "- SMB enumeration: Failed for all authentication methods"
+            echo ""
+            echo "Possible issues:"
+            echo "1. Windows Firewall blocking SMB"
+            echo "2. SMB service not running"
+            echo "3. Authentication required (anonymous access disabled)"
+            echo "4. SMB version compatibility issues"
+            echo "5. Windows security policies blocking access"
+            echo ""
+            echo "Try connecting manually with:"
+            echo "  smbclient -L //$TARGET_IP -U Administrator"
+            echo "  smbclient -L //$TARGET_IP -U guest"
+            echo "  smbclient -L //$TARGET_IP -U \"\""
+            
+            rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt
+            exit 1
+        fi
+    fi
 fi 
