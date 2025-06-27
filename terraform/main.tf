@@ -373,6 +373,26 @@ resource "aws_instance" "windows" {
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionShares" -Value "TestShare" -Type String -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionPipes" -Value "spoolss" -Type String -Force
     
+    # Additional registry settings for anonymous access
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "AutoShareWks" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "AutoShareServer" -Value 1 -Type DWord -Force
+    
+    # Configure Local Security Policy for anonymous access
+    secedit /export /cfg C:\secpol.cfg
+    (Get-Content C:\secpol.cfg) -replace 'RestrictAnonymousSAM = 1', 'RestrictAnonymousSAM = 0' | Set-Content C:\secpol.cfg
+    (Get-Content C:\secpol.cfg) -replace 'RestrictAnonymous = 1', 'RestrictAnonymous = 0' | Set-Content C:\secpol.cfg
+    secedit /configure /db C:\Windows\Security\Local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
+    Remove-Item C:\secpol.cfg -Force
+    
+    # Enable Guest account for testing
+    Enable-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
+    Set-LocalUser -Name "Guest" -Password (ConvertTo-SecureString "Guest123!" -AsPlainText -Force) -ErrorAction SilentlyContinue
+    
+    # Configure network access settings
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "EveryoneIncludesAnonymous" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "NoLMHash" -Value 0 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Value 1 -Type DWord -Force
+    
     # Restart SMB service to apply changes
     Restart-Service -Name "LanmanServer" -Force
     Restart-Service -Name "LanmanWorkstation" -Force
@@ -391,7 +411,10 @@ resource "aws_instance" "windows" {
     Get-SmbShareAccess -Name "TestShare"
     
     Write-Host "Registry Settings:"
-    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" | Select-Object RestrictNullSessAccess, NullSessionShares, NullSessionPipes
+    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" | Select-Object RestrictNullSessAccess, NullSessionShares, NullSessionPipes, AutoShareWks, AutoShareServer
+    
+    Write-Host "LSA Settings:"
+    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" | Select-Object EveryoneIncludesAnonymous, NoLMHash, LmCompatibilityLevel
     
     Write-Host "Windows instance configured successfully"
     </powershell>
