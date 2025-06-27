@@ -42,19 +42,6 @@ data "aws_subnets" "existing" {
   }
 }
 
-# Check if our specific subnet already exists
-data "aws_subnet" "existing_hai" {
-  count = 1
-  filter {
-    name   = "vpc-id"
-    values = [local.vpc_id]
-  }
-  filter {
-    name   = "tag:Name"
-    values = ["hai-ci-subnet"]
-  }
-}
-
 # Get details of existing subnets to check CIDR blocks
 data "aws_subnet" "existing" {
   for_each = toset(data.aws_subnets.existing.ids)
@@ -101,10 +88,8 @@ locals {
   ][0], "10.0.250.0/24")  # Fallback CIDR if all others are taken
 }
 
-# Create subnet in the VPC with an available CIDR (only if it doesn't exist)
+# Create subnet in the VPC with an available CIDR
 resource "aws_subnet" "main" {
-  count = try(data.aws_subnet.existing_hai[0].id, null) == null ? 1 : 0
-  
   vpc_id     = local.vpc_id
   cidr_block = local.available_cidr
   availability_zone = "us-east-1a"
@@ -115,39 +100,13 @@ resource "aws_subnet" "main" {
   }
 }
 
-# Use existing subnet or the newly created one
-locals {
-  subnet_id = try(data.aws_subnet.existing_hai[0].id, aws_subnet.main[0].id)
-}
-
-# Get existing internet gateways in the VPC
-data "aws_internet_gateway" "existing" {
-  count = 1
-  filter {
-    name   = "attachment.vpc-id"
-    values = [local.vpc_id]
-  }
-}
-
-# Use existing internet gateway if available, otherwise create a new one
-locals {
-  existing_igw_id = try(data.aws_internet_gateway.existing[0].id, null)
-}
-
-# Create Internet Gateway only if no existing one is found
+# Create Internet Gateway
 resource "aws_internet_gateway" "main" {
-  count = local.existing_igw_id == null ? 1 : 0
-  
   vpc_id = local.vpc_id
 
   tags = {
     Name = "hai-ci-igw"
   }
-}
-
-# Use existing internet gateway or the newly created one
-locals {
-  igw_id = local.existing_igw_id != null ? local.existing_igw_id : aws_internet_gateway.main[0].id
 }
 
 # Create Route Table
@@ -156,7 +115,7 @@ resource "aws_route_table" "main" {
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = local.igw_id
+    gateway_id = aws_internet_gateway.main.id
   }
 
   tags = {
@@ -166,7 +125,7 @@ resource "aws_route_table" "main" {
 
 # Associate Route Table with Subnet
 resource "aws_route_table_association" "main" {
-  subnet_id      = local.subnet_id
+  subnet_id      = aws_subnet.main.id
   route_table_id = aws_route_table.main.id
 }
 
@@ -218,7 +177,7 @@ resource "aws_key_pair" "ec2_user" {
 resource "aws_instance" "linux" {
   ami           = "ami-0c7217cdde317cfec" # Amazon Linux 2023 in us-east-1
   instance_type = "t3.micro"
-  subnet_id     = local.subnet_id
+  subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.ec2_user.key_name
   associate_public_ip_address = true
@@ -230,7 +189,7 @@ resource "aws_instance" "linux" {
 resource "aws_instance" "windows" {
   ami           = "ami-053b0d53c279acc90" # Windows Server 2019 Base in us-east-1
   instance_type = "t3.micro"
-  subnet_id     = local.subnet_id
+  subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.main.key_name
   associate_public_ip_address = true
