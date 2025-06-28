@@ -325,82 +325,92 @@ resource "aws_instance" "windows" {
     Enable-PSRemoting -Force
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
 
-    # Create the share folder and set NTFS permissions
-    $sharePath = "C:\TestShare"
-    New-Item -ItemType Directory -Path $sharePath -Force | Out-Null
-    
-    # Create a test file in the share
-    "This is a test file for SMB connectivity" | Out-File -FilePath "$sharePath\test.txt" -Encoding ASCII
-    
-    # Grant 'Everyone' full control NTFS permissions
-    icacls $sharePath /grant Everyone:(OI)(CI)F /T
-    icacls $sharePath /grant "NT AUTHORITY\ANONYMOUS LOGON":(OI)(CI)F /T
-
-    # Create the SMB share and grant 'Everyone' full access
-    if (-not (Get-SmbShare -Name "TestShare" -ErrorAction SilentlyContinue)) {
-      New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Everyone" -CachingMode None
-    }
-
-    # Configure Windows Firewall for SMB and RDP
+    # 1. Enable SMB Firewall Rules
+    Write-Host "Enabling File and Printer Sharing (SMB-In) firewall rules..."
+    Enable-NetFirewallRule -DisplayGroup "File and Printer Sharing"
     New-NetFirewallRule -DisplayName "Allow SMB Inbound" -Direction Inbound -LocalPort 445 -Protocol TCP -Action Allow -Profile Any
-    New-NetFirewallRule -DisplayName "Allow RDP Inbound" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow -Profile Any
 
-    # Disable SMB signing requirement for easier access
-    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
-    Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force
-    Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
-    
-    # Enable guest access for easier testing
-    Set-SmbServerConfiguration -EnableGuestAccess $true -Force
-    
-    # Enable anonymous access
-    Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force
-    
-    # Configure additional SMB settings for better compatibility
-    Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force
+    # 2. Ensure SMB Server Service is Running
+    Write-Host "Ensuring 'Server' service is running..."
+    Set-Service -Name 'LanmanServer' -StartupType Automatic
+    Start-Service -Name 'LanmanServer'
+
+    # 3. Enable SMB2 and SMB3 (SMB1 for legacy compatibility)
+    Write-Host "Configuring SMB protocols..."
     Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
     Set-SmbServerConfiguration -EnableSMB3Protocol $true -Force
-    
-    # Disable security features that might block anonymous access
-    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
+    Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force  # For legacy compatibility
+
+    # 4. Create TestShare with Open Permissions
+    $sharePath = "C:\TestShare"
+    if (-Not (Test-Path $sharePath)) {
+        Write-Host "Creating folder $sharePath..."
+        New-Item -Path $sharePath -ItemType Directory | Out-Null
+    }
+
+    # Create a test file in the share
+    "This is a test file for SMB connectivity" | Out-File -FilePath "$sharePath\test.txt" -Encoding ASCII
+
+    if (-Not (Get-SmbShare | Where-Object { $_.Name -eq "TestShare" })) {
+        Write-Host "Creating SMB share 'TestShare' with Everyone:FullControl..."
+        New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess Everyone -CachingMode None
+    }
+
+    # 5. Set Share and NTFS Permissions
+    Write-Host "Setting NTFS permissions for Everyone:FullControl on $sharePath..."
+    $acl = Get-Acl $sharePath
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","ContainerInherit,ObjectInherit","None","Allow")
+    $acl.SetAccessRule($rule)
+    Set-Acl $sharePath $acl
+
+    # 6. Enable Guest Access (for debugging/testing)
+    Write-Host "Enabling SMB guest access for testing..."
     Set-SmbServerConfiguration -EnableGuestAccess $true -Force
+
+    # 7. Configure SMB for easier access (disable security features that might block access)
+    Write-Host "Configuring SMB security settings for testing..."
+    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
     Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force
     Set-SmbServerConfiguration -RestrictNullSessPipes $false -Force
     Set-SmbServerConfiguration -RestrictNullSessShares $false -Force
-    
-    # Configure registry settings for anonymous access
+
+    # 8. Configure registry settings for anonymous access
+    Write-Host "Configuring registry settings..."
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "RestrictNullSessAccess" -Value 0 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionShares" -Value "TestShare" -Type String -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionPipes" -Value "spoolss" -Type String -Force
-    
-    # Additional registry settings for anonymous access
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "AutoShareWks" -Value 1 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "AutoShareServer" -Value 1 -Type DWord -Force
-    
-    # Configure Local Security Policy for anonymous access
+
+    # 9. Configure Local Security Policy for anonymous access
+    Write-Host "Configuring local security policy..."
     secedit /export /cfg C:\secpol.cfg
     (Get-Content C:\secpol.cfg) -replace 'RestrictAnonymousSAM = 1', 'RestrictAnonymousSAM = 0' | Set-Content C:\secpol.cfg
     (Get-Content C:\secpol.cfg) -replace 'RestrictAnonymous = 1', 'RestrictAnonymous = 0' | Set-Content C:\secpol.cfg
     secedit /configure /db C:\Windows\Security\Local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
     Remove-Item C:\secpol.cfg -Force
-    
-    # Enable Guest account for testing
+
+    # 10. Enable Guest account for testing
+    Write-Host "Enabling Guest account for testing..."
     Enable-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
     Set-LocalUser -Name "Guest" -Password (ConvertTo-SecureString "Guest123!" -AsPlainText -Force) -ErrorAction SilentlyContinue
-    
-    # Configure network access settings
+
+    # 11. Configure network access settings
+    Write-Host "Configuring network access settings..."
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "EveryoneIncludesAnonymous" -Value 1 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "NoLMHash" -Value 0 -Type DWord -Force
     Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Value 1 -Type DWord -Force
-    
-    # Restart SMB service to apply changes
+
+    # 12. Restart SMB services to apply changes
+    Write-Host "Restarting SMB services..."
     Restart-Service -Name "LanmanServer" -Force
     Restart-Service -Name "LanmanWorkstation" -Force
-    
-    # Wait a moment for services to restart
-    Start-Sleep -Seconds 15
-    
-    # Verify SMB configuration
+
+    # Wait for services to restart
+    Start-Sleep -Seconds 10
+
+    # 13. Output Diagnostics
+    Write-Host "=== SMB Setup Complete ==="
     Write-Host "SMB Server Configuration:"
     Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, EnableSMB3Protocol, RequireSecuritySignature, EnableGuestAccess, RestrictNullSessAccess
     
@@ -410,13 +420,7 @@ resource "aws_instance" "windows" {
     Write-Host "SMB Share Permissions:"
     Get-SmbShareAccess -Name "TestShare"
     
-    Write-Host "Registry Settings:"
-    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" | Select-Object RestrictNullSessAccess, NullSessionShares, NullSessionPipes, AutoShareWks, AutoShareServer
-    
-    Write-Host "LSA Settings:"
-    Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" | Select-Object EveryoneIncludesAnonymous, NoLMHash, LmCompatibilityLevel
-    
-    Write-Host "Windows instance configured successfully"
+    Write-Host "Windows instance configured successfully for SMB testing"
     </powershell>
     EOF
   )
