@@ -1,5 +1,36 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.aws_region
+}
+
+# Infrastructure constants
+variable "aws_region" {
+  description = "AWS region for all resources"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "availability_zone" {
+  description = "Availability zone for resources"
+  type        = string
+  default     = "us-east-1a"
+}
+
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "instance_type_linux" {
+  description = "EC2 instance type for Linux"
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "instance_type_windows" {
+  description = "EC2 instance type for Windows"
+  type        = string
+  default     = "t3.small"
 }
 
 # Variable for Windows password
@@ -29,7 +60,7 @@ locals {
 resource "aws_vpc" "main" {
   count = local.existing_vpc_id == null ? 1 : 0
   
-  cidr_block = "10.0.0.0/16"
+  cidr_block = var.vpc_cidr
   
   tags = {
     Name = "hai-ci-vpc"
@@ -85,7 +116,7 @@ locals {
 resource "aws_subnet" "main" {
   vpc_id     = local.vpc_id
   cidr_block = local.available_cidr
-  availability_zone = "us-east-1a"
+  availability_zone = var.availability_zone
   map_public_ip_on_launch = true
   
   tags = {
@@ -264,7 +295,7 @@ resource "aws_instance" "linux" {
   depends_on = [aws_key_pair.ec2_user]
   
   ami           = data.aws_ami.linux.id
-  instance_type = "t3.micro"
+  instance_type = var.instance_type_linux
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   key_name      = aws_key_pair.ec2_user.key_name
@@ -292,7 +323,7 @@ resource "aws_instance" "linux" {
 
 resource "aws_instance" "windows" {
   ami           = data.aws_ami.windows.id
-  instance_type = "t3.micro"
+  instance_type = var.instance_type_windows
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   associate_public_ip_address = true
