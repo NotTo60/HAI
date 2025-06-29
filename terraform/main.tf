@@ -52,53 +52,36 @@ data "aws_subnets" "existing" {
   }
 }
 
-# Get details of existing subnets to check CIDR blocks
+# Get details of existing subnets to check for CIDR conflicts
 data "aws_subnet" "existing" {
   for_each = toset(data.aws_subnets.existing.ids)
   id       = each.value
 }
 
-# Find an available CIDR block
-locals {
-  # Define possible CIDR blocks to try
-  possible_cidrs = [
-    "10.0.100.0/24",
-    "10.0.101.0/24", 
-    "10.0.102.0/24",
-    "10.0.103.0/24",
-    "10.0.104.0/24",
-    "10.0.105.0/24",
-    "10.0.106.0/24",
-    "10.0.107.0/24",
-    "10.0.108.0/24",
-    "10.0.109.0/24",
-    "10.0.110.0/24",
-    "10.0.200.0/24",
-    "10.0.201.0/24",
-    "10.0.202.0/24",
-    "10.0.203.0/24",
-    "10.0.204.0/24",
-    "10.0.205.0/24",
-    "10.0.206.0/24",
-    "10.0.207.0/24",
-    "10.0.208.0/24",
-    "10.0.209.0/24",
-    "10.0.210.0/24"
-  ]
-  
-  # Get existing CIDR blocks with error handling
-  existing_cidrs = try([
-    for subnet in data.aws_subnet.existing : subnet.cidr_block
-  ], [])
-  
-  # Find first available CIDR that doesn't conflict
-  available_cidr = try([
-    for cidr in local.possible_cidrs : cidr
-    if !contains(local.existing_cidrs, cidr)
-  ][0], "10.0.250.0/24")  # Fallback CIDR if all others are taken
+# Get VPC CIDR for dynamic subnet generation
+data "aws_vpc" "selected" {
+  id = local.vpc_id
 }
 
-# Create subnet in the VPC with an available CIDR
+# Choose an available CIDR block dynamically
+locals {
+  # Get existing CIDR blocks
+  existing_cidrs = [for subnet in data.aws_subnet.existing : subnet.cidr_block]
+  
+  # Generate potential CIDR blocks from VPC range (10.0.0.0/16)
+  # This creates subnets like 10.0.1.0/24, 10.0.2.0/24, etc.
+  potential_cidrs = [
+    for i in range(1, 255) : "10.0.${i}.0/24"
+  ]
+  
+  # Find first available CIDR block
+  available_cidr = [
+    for cidr in local.potential_cidrs : cidr
+    if !contains(local.existing_cidrs, cidr)
+  ][0]
+}
+
+# Create subnet in the VPC
 resource "aws_subnet" "main" {
   vpc_id     = local.vpc_id
   cidr_block = local.available_cidr
@@ -309,7 +292,7 @@ resource "aws_instance" "linux" {
 
 resource "aws_instance" "windows" {
   ami           = data.aws_ami.windows.id
-  instance_type = "t3.small"  # Better for Windows Server
+  instance_type = "t3.micro"
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
   associate_public_ip_address = true
