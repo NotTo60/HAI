@@ -4,4 +4,8 @@ output "linux_ip" {
 
 output "windows_ip" {
   value = aws_instance.windows.public_ip
+}
+
+output "linux_ssh_user" {
+  value = local.linux_ssh_user
 } 
