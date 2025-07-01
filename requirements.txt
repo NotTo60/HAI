@@ -5,4 +5,6 @@ ipython>=8.0
 pyyaml>=6.0
 tqdm>=4.64
 ruff>=0.1.0
-pytest>=7.0 
+pytest>=7.0
+pre-commit
+detect-secrets 
