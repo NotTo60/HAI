@@ -28,6 +28,10 @@ Thumbs.db
 
 # Python
 *.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
 *$py.class
 *.so
 .Python
@@ -108,3 +112,20 @@ setup_gh_secrets.sh
 # Virtual environments
 env/
 ENV/
+
+# detect-secrets
+.secrets.baseline
+.detect-secrets*
+
+# SSH keys
+*.pem
+*.key
+*.pub
+
+# Pre-commit
+.pre-commit-config.yaml
+.pre-commit-hooks.yaml
+
+# Misc
+*.bak
+*.swp

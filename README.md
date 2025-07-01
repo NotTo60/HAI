@@ -92,40 +92,50 @@ pytest
 
 ## Quick Start
 
-### Installation
-```bash
-# Clone the repository
-git clone <repository-url>
+### 1. Clone the repository
+```sh
+git clone <repo-url>
 cd hai
+```
 
-# Install dependencies
+### 2. Python Environment
+Create and activate a virtual environment:
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install requirements
+```sh
 pip install -r requirements.txt
-
-# Run threaded operations
-python cli_threaded.py --command "whoami" --servers all
 ```
 
-### Basic Usage
-```python
-from core.threaded_operations import run_command_on_servers
-from core.server_schema import ServerEntry
-import json
+### 4. Pre-commit Hooks & Secret Scanning
+This repo uses [pre-commit](https://pre-commit.com/) and [detect-secrets](https://github.com/Yelp/detect-secrets) to prevent accidental commits of secrets or sensitive data.
 
-# Load servers
-with open('servers/servers.json') as f:
-    servers_data = json.load(f)
-    servers = [ServerEntry(**server) for server in servers_data]
+- To install hooks:
+  ```sh
+  pre-commit install
+  ```
+- To update the secrets baseline after intentional changes:
+  ```sh
+  detect-secrets scan > .secrets.baseline
+  git add .secrets.baseline
+  git commit -m "update secrets baseline"
+  ```
+- Test passwords and known test secrets are excluded (see `.pre-commit-config.yaml`).
 
-# Run command on all servers with threading
-results = run_command_on_servers(
-    servers=servers,
-    command="whoami",
-    max_workers=10,
-    show_progress=True
-)
+### 5. Terraform
+- All constants (region, AZ, instance types, etc.) are defined as variables at the top of `main.tf`.
+- Use `terraform init` and `terraform plan` in the `terraform/` directory.
 
-print(f"Success rate: {results.success_rate:.1f}%")
-```
+### 6. Running Tests
+- See the `tests/` directory for integration and connectivity tests.
+- Example:
+  ```sh
+  python3 tests/test_smb_diagnostics.py <target_ip>
+  ./tests/test_windows_smb_connectivity.sh <target_ip>
+  ```
 
 ## Configuration
 ### Server Inventory (`servers/servers.json`)
@@ -636,3 +646,8 @@ dataclasses>=3.7        # Data classes
 ## License
 
 MIT License 
+
+## Contributing
+- Use feature branches and submit PRs for review.
+- Ensure all pre-commit hooks pass before pushing.
+- Do not commit real secrets or credentials. 
