@@ -110,19 +110,6 @@ else
             echo "- Target IP: $TARGET_IP"
             echo "- Port 445: Reachable"
             echo "- SMB enumeration: Failed for all authentication methods"
-            echo ""
-            echo "Possible issues:"
-            echo "1. Windows Firewall blocking SMB"
-            echo "2. SMB service not running"
-            echo "3. Authentication required (anonymous access disabled)"
-            echo "4. SMB version compatibility issues"
-            echo "5. Windows security policies blocking access"
-            echo ""
-            echo "Try connecting manually with:"
-            echo "  smbclient -L //$TARGET_IP -U Administrator"
-            echo "  smbclient -L //$TARGET_IP -U guest"
-            echo "  smbclient -L //$TARGET_IP -U \"\""
-            
             rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt
             exit 1
         fi

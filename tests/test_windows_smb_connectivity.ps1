@@ -152,14 +152,5 @@ if ($shareAccessible) {
     Write-Host "- TestShare: Not accessible"
     Write-Host "- C$ share: Not accessible"
     Write-Host "- ADMIN$ share: Not accessible"
-    Write-Host ""
-    Write-Host "Possible issues:"
-    Write-Host "1. Windows Firewall blocking SMB"
-    Write-Host "2. SMB service not running"
-    Write-Host "3. Network connectivity issues"
-    Write-Host "4. Authentication problems"
-    Write-Host "5. Windows security policies blocking access"
-    Write-Host ""
-    Write-Host "Recommendation: Use the bash test script (test_windows_smb_connectivity.sh) for better SMB testing"
     exit 1
 } 

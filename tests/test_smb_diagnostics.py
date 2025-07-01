@@ -207,7 +207,7 @@ class SMBDiagnostics:
         self.test_common_shares()
         
         # Generate recommendations
-        recommendations = self.generate_recommendations()
+        # recommendations = self.generate_recommendations()
         
         # Print summary
         print("\n" + "=" * 50)
@@ -224,10 +224,11 @@ class SMBDiagnostics:
                 status = "✅" if results else "❌"
                 print(f"  {status} {category}")
         
-        if recommendations:
-            print(f"\n💡 RECOMMENDATIONS:")
-            for i, rec in enumerate(recommendations, 1):
-                print(f"  {i}. {rec}")
+        # Remove recommendations output for production
+        # if recommendations:
+        #     print(f"\n💡 RECOMMENDATIONS:")
+        #     for i, rec in enumerate(recommendations, 1):
+        #         print(f"  {i}. {rec}")
         
         # Save results to file
         output_file = f"smb_diagnostics_{self.target_ip}_{int(time.time())}.json"
@@ -235,8 +236,8 @@ class SMBDiagnostics:
             json.dump({
                 'target_ip': self.target_ip,
                 'timestamp': time.time(),
-                'results': self.results,
-                'recommendations': recommendations
+                'results': self.results
+                # 'recommendations': recommendations
             }, f, indent=2)
         
         print(f"\n📄 Detailed results saved to: {output_file}")
