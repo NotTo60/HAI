@@ -133,6 +133,7 @@ resource "aws_instance" "windows" {
     Write-Host "Windows instance configured successfully for SMB testing"
     </powershell>
     EOF
+  )
   tags = {
     Name = "hai-windows-ci"
     ManagedBy = "hai-ci-workflow"
