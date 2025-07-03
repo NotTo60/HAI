@@ -11,7 +11,6 @@ locals {
     "fedora"  = "fedora"
   }
   linux_ssh_user = lookup(local.linux_user_map, regex("^([a-z0-9]+)", local.linux_ami_name)[0], "ec2-user")
-  create_windows_ssm_role = length(try(data.aws_iam_role.windows_ssm.arn, "")) == 0
 }
 
 resource "aws_instance" "linux" {
