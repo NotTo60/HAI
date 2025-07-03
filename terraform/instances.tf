@@ -39,6 +39,34 @@ resource "aws_instance" "linux" {
   }
 }
 
+resource "aws_iam_role" "windows_ssm" {
+  name = "windows-ssm-role"
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy_attachment" "windows_ssm" {
+  role       = aws_iam_role.windows_ssm.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "windows_ssm" {
+  name = "windows-ssm-profile"
+  role = aws_iam_role.windows_ssm.name
+}
+
 resource "aws_instance" "windows" {
   ami           = data.aws_ami.windows.id
   instance_type = var.instance_type_windows
@@ -134,6 +162,7 @@ resource "aws_instance" "windows" {
     </powershell>
     EOF
   )
+  iam_instance_profile = aws_iam_instance_profile.windows_ssm.name
   tags = {
     Name = "hai-windows-ci"
     ManagedBy = "hai-ci-workflow"
