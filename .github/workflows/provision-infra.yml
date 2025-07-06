@@ -208,6 +208,13 @@ jobs:
             # Set proper permissions for the private key
             chmod 600 terraform/windows_rsa
             
+            # Debug: Check key format
+            echo "=== KEY DEBUG INFO ==="
+            echo "Key file size: $(wc -c < terraform/windows_rsa) bytes"
+            echo "Key file first line: $(head -1 terraform/windows_rsa)"
+            echo "Key file last line: $(tail -1 terraform/windows_rsa)"
+            echo "=== END KEY DEBUG ==="
+            
             # Try to retrieve password data with retries
             echo "Waiting for password data to become available..."
             PASSWORD_DATA=""
@@ -237,12 +244,23 @@ jobs:
             if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
               # Decrypt the password using the private key
               echo "Decrypting password using private key..."
-              DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+              # First, ensure the key is in the correct format for OpenSSL
+              echo "Converting key format for OpenSSL compatibility..."
+              openssl rsa -in terraform/windows_rsa -out terraform/windows_rsa_openssl -outform PEM 2>/dev/null || echo "Key conversion failed"
+              
+              # Try decryption with the converted key
+              DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa_openssl 2>/dev/null || echo "DECRYPTION_FAILED")
+              
+              # If that fails, try with the original key
+              if [ "$DECRYPTED_PASSWORD" = "DECRYPTION_FAILED" ]; then
+                echo "Trying with original key format..."
+                DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+              fi
               
               if [ "$DECRYPTED_PASSWORD" != "DECRYPTION_FAILED" ]; then
                 echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $DECRYPTED_PASSWORD"
                 echo "Instance ID: $WINDOWS_INSTANCE_ID"
-                echo "IP Address: $(terraform output -raw windows_ip)"
+                echo "IP Address: $(aws ec2 describe-instances --instance-ids $WINDOWS_INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
               else
                 echo "❌ Failed to decrypt password. This might be because:"
                 echo "   - Private key doesn't match the one used to encrypt the password"
