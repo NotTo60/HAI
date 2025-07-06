@@ -73,8 +73,9 @@ jobs:
           echo "=== TARGETED CLEANUP - KEY PAIRS ==="
           echo "Removing only workflow-specific key pairs..."
           
-          # Only delete our specific key pair (Windows uses password authentication)
+          # Delete both Linux and Windows key pairs
           aws ec2 delete-key-pair --key-name hai-ci-ec2-user-key 2>/dev/null || echo "Failed to delete hai-ci-ec2-user-key, continuing..."
+          aws ec2 delete-key-pair --key-name hai-ci-windows-key 2>/dev/null || echo "Failed to delete hai-ci-windows-key, continuing..."
           
           echo "Key pair cleanup completed"
 

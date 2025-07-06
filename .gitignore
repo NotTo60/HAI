@@ -121,6 +121,8 @@ ENV/
 *.pem
 *.key
 *.pub
+ec2_user_rsa*
+windows_rsa*
 
 # Pre-commit
 .pre-commit-config.yaml

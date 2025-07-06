@@ -51,13 +51,19 @@ jobs:
             ssh-keygen -t rsa -b 2048 -f terraform/id_rsa -N ""
           fi
 
-      - name: Generate new SSH key for ec2-user
+      - name: Generate SSH keys for instances
         run: |
-          # Generate a new SSH key pair specifically for ec2-user
+          # Generate a new SSH key pair for Linux instances
           ssh-keygen -t rsa -b 2048 -f terraform/ec2_user_rsa -N ""
-          echo "Generated new SSH key pair for ec2-user"
-          echo "Public key:"
+          echo "Generated new SSH key pair for Linux instances"
+          echo "Linux Public key:"
           cat terraform/ec2_user_rsa.pub
+          
+          # Generate a separate SSH key pair for Windows instances
+          ssh-keygen -t rsa -b 2048 -f terraform/windows_rsa -N ""
+          echo "Generated new SSH key pair for Windows instances"
+          echo "Windows Public key:"
+          cat terraform/windows_rsa.pub
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -88,9 +94,10 @@ jobs:
           aws sts get-caller-identity
           echo "AWS credentials are valid!"
 
-      - name: Remove existing AWS key pair if present
+      - name: Remove existing AWS key pairs if present
         run: |
           aws ec2 delete-key-pair --key-name hai-ci-ec2-user-key || true
+          aws ec2 delete-key-pair --key-name hai-ci-windows-key || true
 
       - name: Clean up conflicting subnets
         run: |
@@ -175,8 +182,12 @@ jobs:
           echo "username=$(terraform output -raw linux_ssh_user)" >> $GITHUB_OUTPUT
           echo "Detected Linux username: $(terraform output -raw linux_ssh_user)"
 
-      - name: Upload SSH key for later jobs
+      - name: Upload SSH keys as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: linux_ssh_key
-          path: terraform/ec2_user_rsa 
+          name: ssh_keys
+          path: |
+            terraform/ec2_user_rsa
+            terraform/ec2_user_rsa.pub
+            terraform/windows_rsa
+            terraform/windows_rsa.pub 

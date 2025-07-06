@@ -6,4 +6,14 @@ resource "aws_key_pair" "ec2_user" {
     Environment = "ci-testing"
     WorkflowRunID = var.workflow_run_id
   }
+}
+
+resource "aws_key_pair" "windows" {
+  key_name   = "hai-ci-windows-key"
+  public_key = file("${path.module}/windows_rsa.pub")
+  tags = {
+    ManagedBy = "hai-ci-workflow"
+    Environment = "ci-testing"
+    WorkflowRunID = var.workflow_run_id
+  }
 } 
