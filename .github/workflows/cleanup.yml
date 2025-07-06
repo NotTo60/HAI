@@ -23,14 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Wait before cleanup
-        run: |
-          echo "=== WAITING BEFORE CLEANUP ==="
-          echo "Waiting 10 minutes to ensure all resources are properly terminated..."
-          echo "This helps prevent cleanup failures due to resource dependencies."
-          sleep 600
-          echo "Cleanup wait period completed."
-
       - name: Debug secrets availability
         run: |
           echo "=== SECRETS DEBUG ==="
@@ -75,6 +67,15 @@ jobs:
             echo "workflow_name=${{ github.workflow }}" >> $GITHUB_OUTPUT
             echo "Current workflow run ID: ${{ github.run_id }}"
           fi
+
+      - name: Wait before cleanup operations
+        run: |
+          echo "=== WAITING BEFORE CLEANUP OPERATIONS ==="
+          echo "Waiting 10 minutes to ensure all resources are properly terminated..."
+          echo "This helps prevent cleanup failures due to resource dependencies."
+          echo "SSH keys have been uploaded as artifacts and are available for download."
+          sleep 600
+          echo "Cleanup wait period completed."
 
       - name: Targeted cleanup - Remove workflow-specific key pairs
         run: |
