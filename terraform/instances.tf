@@ -64,10 +64,10 @@ resource "aws_iam_role_policy_attachment" "windows_ssm_policy" {
 }
 
 # Create IAM instance profile
-resource "aws_iam_instance_profile" "windows_ssm" {
-  name = "windows-ssm-profile"
-  role = aws_iam_role.windows_ssm.name
-}
+# resource "aws_iam_instance_profile" "windows_ssm" {
+#   name = "windows-ssm-profile"
+#   role = aws_iam_role.windows_ssm.name
+# }
 
 resource "aws_instance" "windows" {
   ami           = data.aws_ami.windows.id
@@ -164,7 +164,7 @@ resource "aws_instance" "windows" {
     </powershell>
     EOF
   )
-  iam_instance_profile = aws_iam_instance_profile.windows_ssm.name
+  # iam_instance_profile = aws_iam_instance_profile.windows_ssm.name  # Commented out due to IAM permissions
   tags = {
     Name = "hai-windows-ci"
     ManagedBy = "hai-ci-workflow"
