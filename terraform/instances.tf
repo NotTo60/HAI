@@ -58,10 +58,10 @@ resource "aws_instance" "linux" {
 # }
 
 # Attach SSM managed policy to the role
-resource "aws_iam_role_policy_attachment" "windows_ssm_policy" {
-  role       = aws_iam_role.windows_ssm.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
+# resource "aws_iam_role_policy_attachment" "windows_ssm_policy" {
+#   role       = aws_iam_role.windows_ssm.name
+#   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+# }
 
 # Create IAM instance profile
 # resource "aws_iam_instance_profile" "windows_ssm" {
