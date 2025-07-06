@@ -74,6 +74,7 @@ resource "aws_instance" "windows" {
   instance_type = var.instance_type_windows
   subnet_id     = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.main.id]
+  key_name      = aws_key_pair.ec2_user.key_name
   associate_public_ip_address = true
   user_data_base64 = base64encode(<<-EOF
     <powershell>
