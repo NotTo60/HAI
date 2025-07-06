@@ -56,16 +56,33 @@ jobs:
           if [ -n "$WINDOWS_INSTANCE_ID" ]; then
             echo "Found Windows instance: $WINDOWS_INSTANCE_ID"
             
-            # Retrieve the encrypted password data
-            echo "Retrieving encrypted password data..."
-            PASSWORD_DATA=$(aws ec2 get-password-data \
-              --instance-id $WINDOWS_INSTANCE_ID \
-              --query 'PasswordData' \
-              --output text 2>/dev/null || echo "")
+            # Try to retrieve password data with retries
+            echo "Waiting for password data to become available..."
+            PASSWORD_DATA=""
+            MAX_ATTEMPTS=5
+            ATTEMPT=1
+            
+            while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ -z "$PASSWORD_DATA" ]; do
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Retrieving encrypted password data..."
+              PASSWORD_DATA=$(aws ec2 get-password-data \
+                --instance-id $WINDOWS_INSTANCE_ID \
+                --query 'PasswordData' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
+                echo "✅ Encrypted password data retrieved successfully on attempt $ATTEMPT"
+                break
+              else
+                echo "❌ No password data available yet (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+                if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                  echo "Waiting 30 seconds before next attempt..."
+                  sleep 30
+                fi
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+            done
             
             if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
-              echo "Encrypted password data retrieved successfully"
-              
               # Decrypt the password using the private key
               echo "Decrypting password using private key..."
               DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
@@ -78,7 +95,8 @@ jobs:
                 echo "❌ Failed to decrypt password"
               fi
             else
-              echo "❌ No password data available yet"
+              echo "❌ Password data still not available after $MAX_ATTEMPTS attempts."
+              echo "   This might indicate an issue with the Windows instance setup."
             fi
           else
             echo "❌ Windows instance not found or not running"

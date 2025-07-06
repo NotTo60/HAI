@@ -208,16 +208,33 @@ jobs:
             # Set proper permissions for the private key
             chmod 600 terraform/windows_rsa
             
-            # Retrieve the encrypted password data
-            echo "Retrieving encrypted password data..."
-            PASSWORD_DATA=$(aws ec2 get-password-data \
-              --instance-id $WINDOWS_INSTANCE_ID \
-              --query 'PasswordData' \
-              --output text 2>/dev/null || echo "")
+            # Try to retrieve password data with retries
+            echo "Waiting for password data to become available..."
+            PASSWORD_DATA=""
+            MAX_ATTEMPTS=10
+            ATTEMPT=1
+            
+            while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ -z "$PASSWORD_DATA" ]; do
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Retrieving encrypted password data..."
+              PASSWORD_DATA=$(aws ec2 get-password-data \
+                --instance-id $WINDOWS_INSTANCE_ID \
+                --query 'PasswordData' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
+                echo "✅ Encrypted password data retrieved successfully on attempt $ATTEMPT"
+                break
+              else
+                echo "❌ No password data available yet (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+                if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                  echo "Waiting 30 seconds before next attempt..."
+                  sleep 30
+                fi
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+            done
             
             if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
-              echo "Encrypted password data retrieved successfully"
-              
               # Decrypt the password using the private key
               echo "Decrypting password using private key..."
               DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
@@ -228,13 +245,13 @@ jobs:
                 echo "IP Address: $(terraform output -raw windows_ip)"
               else
                 echo "❌ Failed to decrypt password. This might be because:"
-                echo "   - Password data is not yet available (instance still starting)"
                 echo "   - Private key doesn't match the one used to encrypt the password"
                 echo "   - Password data format is different than expected"
               fi
             else
-              echo "❌ No password data available yet. This is normal if the instance is still starting up."
-              echo "   Password data typically becomes available 2-5 minutes after instance launch."
+              echo "❌ Password data still not available after $MAX_ATTEMPTS attempts."
+              echo "   This might indicate an issue with the Windows instance setup."
+              echo "   You can try retrieving the password manually from the AWS console."
             fi
           else
             echo "❌ Windows instance not found or not running"
