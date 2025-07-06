@@ -81,6 +81,12 @@ resource "aws_instance" "windows" {
     # Set Administrator password
     $password = ConvertTo-SecureString "${var.windows_password}" -AsPlainText -Force
     Set-LocalUser -Name "Administrator" -Password $password
+    
+    # Enable RDP (Remote Desktop)
+    Write-Host "Enabling Remote Desktop..."
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+    
     # Enable WinRM for remote management
     Enable-PSRemoting -Force
     Set-Item WSMan:\localhost\Client\TrustedHosts -Value "*" -Force
@@ -162,6 +168,16 @@ resource "aws_instance" "windows" {
     Write-Host "SMB Share Permissions:"
     Get-SmbShareAccess -Name "TestShare"
     Write-Host "Windows instance configured successfully for SMB testing"
+    
+    # RDP and Authentication Debug Information
+    Write-Host "=== RDP AND AUTHENTICATION DEBUG ==="
+    Write-Host "Administrator account status:"
+    Get-LocalUser -Name "Administrator" | Select-Object Name, Enabled, PasswordLastSet
+    Write-Host "RDP status:"
+    Get-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections"
+    Write-Host "RDP firewall rules:"
+    Get-NetFirewallRule -DisplayGroup "Remote Desktop" | Select-Object DisplayName, Enabled
+    Write-Host "=== END DEBUG ==="
     </powershell>
     EOF
   )
