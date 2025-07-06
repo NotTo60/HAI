@@ -59,9 +59,9 @@ jobs:
           echo "Linux Public key:"
           cat terraform/ec2_user_rsa.pub
           
-          # Generate a separate SSH key pair for Windows instances
-          ssh-keygen -t rsa -b 2048 -f terraform/windows_rsa -N ""
-          echo "Generated new SSH key pair for Windows instances"
+          # Generate a separate SSH key pair for Windows instances (PEM format for AWS password retrieval)
+          ssh-keygen -t rsa -b 2048 -m PEM -f terraform/windows_rsa -N ""
+          echo "Generated new SSH key pair for Windows instances (PEM format)"
           echo "Windows Public key:"
           cat terraform/windows_rsa.pub
 
