@@ -190,4 +190,54 @@ jobs:
             terraform/ec2_user_rsa
             terraform/ec2_user_rsa.pub
             terraform/windows_rsa
-            terraform/windows_rsa.pub 
+            terraform/windows_rsa.pub
+
+      - name: Retrieve Windows administrator password
+        run: |
+          echo "=== RETRIEVING WINDOWS ADMINISTRATOR PASSWORD ==="
+          
+          # Get the Windows instance ID
+          WINDOWS_INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=hai-windows-ci" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$WINDOWS_INSTANCE_ID" ]; then
+            echo "Found Windows instance: $WINDOWS_INSTANCE_ID"
+            
+            # Set proper permissions for the private key
+            chmod 600 terraform/windows_rsa
+            
+            # Retrieve the encrypted password data
+            echo "Retrieving encrypted password data..."
+            PASSWORD_DATA=$(aws ec2 get-password-data \
+              --instance-id $WINDOWS_INSTANCE_ID \
+              --query 'PasswordData' \
+              --output text 2>/dev/null || echo "")
+            
+            if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
+              echo "Encrypted password data retrieved successfully"
+              
+              # Decrypt the password using the private key
+              echo "Decrypting password using private key..."
+              DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+              
+              if [ "$DECRYPTED_PASSWORD" != "DECRYPTION_FAILED" ]; then
+                echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $DECRYPTED_PASSWORD"
+                echo "Instance ID: $WINDOWS_INSTANCE_ID"
+                echo "IP Address: $(terraform output -raw windows_ip)"
+              else
+                echo "❌ Failed to decrypt password. This might be because:"
+                echo "   - Password data is not yet available (instance still starting)"
+                echo "   - Private key doesn't match the one used to encrypt the password"
+                echo "   - Password data format is different than expected"
+              fi
+            else
+              echo "❌ No password data available yet. This is normal if the instance is still starting up."
+              echo "   Password data typically becomes available 2-5 minutes after instance launch."
+            fi
+          else
+            echo "❌ Windows instance not found or not running"
+          fi
+          
+          echo "=== END PASSWORD RETRIEVAL ===" 

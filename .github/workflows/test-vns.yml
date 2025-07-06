@@ -25,6 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
       - name: Download SSH keys
         uses: actions/download-artifact@v4
         with:
@@ -35,6 +42,49 @@ jobs:
           chmod 600 ec2_user_rsa
           chmod 600 windows_rsa
           echo "SSH key permissions set"
+
+      - name: Debug Windows administrator password
+        run: |
+          echo "=== DEBUG WINDOWS ADMINISTRATOR PASSWORD ==="
+          
+          # Get the Windows instance ID
+          WINDOWS_INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=hai-windows-ci" "Name=instance-state-name,Values=running" \
+            --query 'Reservations[0].Instances[0].InstanceId' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -n "$WINDOWS_INSTANCE_ID" ]; then
+            echo "Found Windows instance: $WINDOWS_INSTANCE_ID"
+            
+            # Retrieve the encrypted password data
+            echo "Retrieving encrypted password data..."
+            PASSWORD_DATA=$(aws ec2 get-password-data \
+              --instance-id $WINDOWS_INSTANCE_ID \
+              --query 'PasswordData' \
+              --output text 2>/dev/null || echo "")
+            
+            if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
+              echo "Encrypted password data retrieved successfully"
+              
+              # Decrypt the password using the private key
+              echo "Decrypting password using private key..."
+              DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+              
+              if [ "$DECRYPTED_PASSWORD" != "DECRYPTION_FAILED" ]; then
+                echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $DECRYPTED_PASSWORD"
+                echo "Instance ID: $WINDOWS_INSTANCE_ID"
+                echo "IP Address: ${{ inputs.windows_ip }}"
+              else
+                echo "❌ Failed to decrypt password"
+              fi
+            else
+              echo "❌ No password data available yet"
+            fi
+          else
+            echo "❌ Windows instance not found or not running"
+          fi
+          
+          echo "=== END PASSWORD DEBUG ==="
 
       - name: Test SSH to Linux
         working-directory: ${{ github.workspace }}
