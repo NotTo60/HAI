@@ -55,11 +55,6 @@ resource "aws_iam_role" "windows_ssm" {
       }
     ]
   })
-
-  tags = {
-    Name = "windows-ssm-role"
-    ManagedBy = "hai-ci-workflow"
-  }
 }
 
 # Attach SSM managed policy to the role
@@ -72,11 +67,6 @@ resource "aws_iam_role_policy_attachment" "windows_ssm_policy" {
 resource "aws_iam_instance_profile" "windows_ssm" {
   name = "windows-ssm-profile"
   role = aws_iam_role.windows_ssm.name
-
-  tags = {
-    Name = "windows-ssm-profile"
-    ManagedBy = "hai-ci-workflow"
-  }
 }
 
 resource "aws_instance" "windows" {
