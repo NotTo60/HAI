@@ -25,14 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download SSH key
+      - name: Download SSH keys
         uses: actions/download-artifact@v4
         with:
-          name: linux_ssh_key
+          name: ssh_keys
 
       - name: Set SSH key permissions
         run: |
           chmod 600 ec2_user_rsa
+          chmod 600 windows_rsa
           echo "SSH key permissions set"
 
       - name: Test SSH to Linux
