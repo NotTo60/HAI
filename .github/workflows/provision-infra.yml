@@ -249,30 +249,34 @@ jobs:
               openssl rsa -in terraform/windows_rsa -out terraform/windows_rsa_openssl -outform PEM 2>/dev/null || echo "Key conversion failed"
               
               # Try decryption with the converted key
-              DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa_openssl 2>/dev/null || echo "DECRYPTION_FAILED")
+              WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa_openssl 2>/dev/null || echo "DECRYPTION_FAILED")
               
               # If that fails, try with the original key
-              if [ "$DECRYPTED_PASSWORD" = "DECRYPTION_FAILED" ]; then
+              if [ "$WIN_AUTH_DATA" = "DECRYPTION_FAILED" ]; then
                 echo "Trying with original key format..."
-                DECRYPTED_PASSWORD=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+                WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
               fi
               
-              if [ "$DECRYPTED_PASSWORD" != "DECRYPTION_FAILED" ]; then
-                echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $DECRYPTED_PASSWORD"
+              if [ "$WIN_AUTH_DATA" != "DECRYPTION_FAILED" ]; then
+                echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $WIN_AUTH_DATA"
                 echo "Instance ID: $WINDOWS_INSTANCE_ID"
                 echo "IP Address: $(aws ec2 describe-instances --instance-ids $WINDOWS_INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
+                echo "$WIN_AUTH_DATA" > temp_auth.txt
+                echo "Password saved to temp_auth.txt for SMB authentication"
               else
                 echo "❌ Failed to decrypt password. This might be because:"
                 echo "   - Private key doesn't match the one used to encrypt the password"
                 echo "   - Password data format is different than expected"
+                echo "DECRYPTION_FAILED" > temp_auth.txt
               fi
             else
               echo "❌ Password data still not available after $MAX_ATTEMPTS attempts."
               echo "   This might indicate an issue with the Windows instance setup."
-              echo "   You can try retrieving the password manually from the AWS console."
+              echo "NO_PASSWORD_AVAILABLE" > temp_auth.txt
             fi
           else
             echo "❌ Windows instance not found or not running"
+            echo "NO_INSTANCE_FOUND" > temp_auth.txt
           fi
           
           echo "=== END PASSWORD RETRIEVAL ===" 

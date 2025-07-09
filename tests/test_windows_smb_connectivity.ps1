@@ -1,9 +1,10 @@
 param(
-    [string]$TargetIP
+    [string]$TargetIP,
+    [string]$Password
 )
 
 if (-not $TargetIP) {
-    Write-Host "Usage: .\test_windows_smb_connectivity.ps1 -TargetIP <ip>"
+    Write-Host "Usage: .\test_windows_smb_connectivity.ps1 -TargetIP <ip> [-Password <password>]"
     exit 1
 }
 
@@ -124,15 +125,41 @@ if (-not $shareAccessible) {
 if (-not $shareAccessible) {
     Write-Host "Trying TestShare with different authentication methods..."
     
-    # Try with anonymous access
-    try {
-        $testPath = "\\$TargetIP\TestShare"
-        if (Test-Path $testPath -ErrorAction SilentlyContinue) {
-            Write-Host "TestShare accessible with anonymous access"
-            $shareAccessible = $true
+    # Try with Administrator credentials if password provided
+    if ($Password -and $Password -ne "DECRYPTION_FAILED" -and $Password -ne "NO_PASSWORD_AVAILABLE" -and $Password -ne "NO_INSTANCE_FOUND") {
+        Write-Host "Attempting SMB access with Administrator credentials..."
+        try {
+            # Create credential object
+            $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
+            $credential = New-Object System.Management.Automation.PSCredential("Administrator", $securePassword)
+            
+            # Try to access shares with credentials
+            $testPath = "\\$TargetIP\TestShare"
+            $session = New-PSSession -ComputerName $TargetIP -Credential $credential -ErrorAction SilentlyContinue
+            
+            if ($session) {
+                Write-Host "✅ Successfully connected with Administrator credentials"
+                Remove-PSSession $session
+                $shareAccessible = $true
+            } else {
+                Write-Host "Failed to connect with Administrator credentials"
+            }
+        } catch {
+            Write-Host "Administrator authentication failed: $_"
         }
-    } catch {
-        Write-Host "Anonymous access to TestShare failed"
+    }
+    
+    # Try with anonymous access
+    if (-not $shareAccessible) {
+        try {
+            $testPath = "\\$TargetIP\TestShare"
+            if (Test-Path $testPath -ErrorAction SilentlyContinue) {
+                Write-Host "TestShare accessible with anonymous access"
+                $shareAccessible = $true
+            }
+        } catch {
+            Write-Host "Anonymous access to TestShare failed"
+        }
     }
     
     # Try with guest access (if we had credentials)

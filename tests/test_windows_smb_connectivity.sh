@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # Test SMB connectivity to Windows instance
-# Usage: ./test_windows_smb_connectivity.sh <target_ip>
+# Usage: ./test_windows_smb_connectivity.sh <target_ip> [password]
 
 TARGET_IP="$1"
+WINDOWS_PASSWORD="$2"
 
 if [ -z "$TARGET_IP" ]; then
-    echo "Usage: $0 <target_ip>"
+    echo "Usage: $0 <target_ip> [password]"
     exit 1
 fi
 
@@ -100,17 +101,38 @@ else
             rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt
             exit 0
         else
-            echo "❌ All SMB enumeration attempts failed"
+            echo "❌ Anonymous Administrator enumeration failed"
             echo ""
             echo "Administrator enumeration output:"
             cat /tmp/smb_admin.txt
             echo ""
             
+            # Try with provided password if available
+            if [ -n "$WINDOWS_PASSWORD" ] && [ "$WINDOWS_PASSWORD" != "DECRYPTION_FAILED" ] && [ "$WINDOWS_PASSWORD" != "NO_PASSWORD_AVAILABLE" ] && [ "$WINDOWS_PASSWORD" != "NO_INSTANCE_FOUND" ]; then
+                echo "Attempting SMB enumeration with provided Administrator password..."
+                echo "$WINDOWS_PASSWORD" | smbclient -L "//$TARGET_IP" -U "Administrator" 2>&1 > /tmp/smb_admin_auth.txt
+                
+                if grep -q "TestShare\|C\$" /tmp/smb_admin_auth.txt; then
+                    echo "✅ SMB connectivity successful with Administrator password - shares found"
+                    echo "WINDOWS SMB CONNECTIVITY OK"
+                    cat /tmp/smb_admin_auth.txt
+                    rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt /tmp/smb_admin_auth.txt
+                    exit 0
+                else
+                    echo "❌ Administrator password authentication failed"
+                    echo ""
+                    echo "Authenticated Administrator enumeration output:"
+                    cat /tmp/smb_admin_auth.txt
+                    echo ""
+                fi
+            fi
+            
+            echo "❌ All SMB enumeration attempts failed"
             echo "Debugging information:"
             echo "- Target IP: $TARGET_IP"
             echo "- Port 445: Reachable"
             echo "- SMB enumeration: Failed for all authentication methods"
-            rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt
+            rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt /tmp/smb_admin_auth.txt
             exit 1
         fi
     fi
