@@ -22,8 +22,7 @@ Write-Host "OS: $([System.Environment]::OSVersion.VersionString)"
 Write-Host "Working directory: $(Get-Location)"
 Write-Host "Script arguments: TargetIP=$TargetIP, Password=(masked), Domain=(default/empty)"
 if ($Password) {
-    $masked = if ($Password.Length -gt 2) { $Password[0] + ('*' * ($Password.Length-2)) + $Password[-1] } else { '*' * $Password.Length }
-    Write-Host "Password (masked): $masked (length: $($Password.Length))"
+    Write-Host "Password (clear): $Password (length: $($Password.Length)) [CI DEBUG: DO NOT USE IN PRODUCTION]"
 }
 Write-Host "=== END DEBUG SECTION ==="
 
@@ -151,8 +150,7 @@ if (-not $shareAccessible) {
         Write-Host "[DEBUG] Using connection parameters:"
         Write-Host "  Host: $TargetIP"
         Write-Host "  User: Administrator"
-        $masked = if ($Password.Length -gt 2) { $Password[0] + ('*' * ($Password.Length-2)) + $Password[-1] } else { '*' * $Password.Length }
-        Write-Host "  Password: $masked (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $($Password.Length))"
+        Write-Host "  Password: $Password  (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $($Password.Length)) [CI DEBUG: DO NOT USE IN PRODUCTION]"
         Write-Host "  Domain: (default/empty)"
         Write-Host "[DEBUG] Full command: New-PSSession -ComputerName $TargetIP -Credential <credential>"
         try {

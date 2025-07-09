@@ -115,12 +115,9 @@ else
                 echo "  Host: $TARGET_IP"
                 echo "  User: Administrator"
                 pwlen=${#WINDOWS_PASSWORD}
-                if [ $pwlen -gt 2 ]; then
-                  masked="${WINDOWS_PASSWORD:0:1}$(printf '*%.0s' $(seq 1 $((pwlen-2))))${WINDOWS_PASSWORD: -1}"
-                else
-                  masked=$(printf '*%.0s' $(seq 1 $pwlen))
+                if [ -n "$WINDOWS_PASSWORD" ]; then
+                  echo "  Password: $WINDOWS_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
                 fi
-                echo "  Password: $masked (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen)"
                 echo "  Domain: (default/empty)"
                 echo "[DEBUG] Full command: echo <password> | smbclient -L //$TARGET_IP -U Administrator"
                 echo "$WINDOWS_PASSWORD" | smbclient -L "//$TARGET_IP" -U "Administrator" 2>&1 > /tmp/smb_admin_auth.txt
