@@ -57,7 +57,8 @@ fi
 echo "Testing SMB connectivity with smbclient..."
 
 # Try to list shares anonymously
-echo "Attempting anonymous SMB enumeration..."
+echo "[DEBUG] Attempting anonymous SMB enumeration..."
+echo "[DEBUG] Full command: smbclient -L //$TARGET_IP -U "" -N"
 smbclient -L "//$TARGET_IP" -U "" -N 2>&1 > /tmp/smb_anonymous.txt
 
 if grep -q "TestShare\|C\$" /tmp/smb_anonymous.txt; then
@@ -68,13 +69,13 @@ if grep -q "TestShare\|C\$" /tmp/smb_anonymous.txt; then
     exit 0
 else
     echo "❌ Anonymous SMB enumeration failed"
-    echo ""
-    echo "Anonymous enumeration output:"
+    echo "[DEBUG] Anonymous enumeration output:"
     cat /tmp/smb_anonymous.txt
     echo ""
     
     # Try with guest access
-    echo "Attempting guest SMB enumeration..."
+    echo "[DEBUG] Attempting guest SMB enumeration..."
+    echo "[DEBUG] Full command: smbclient -L //$TARGET_IP -U guest -N"
     smbclient -L "//$TARGET_IP" -U "guest" -N 2>&1 > /tmp/smb_guest.txt
     
     if grep -q "TestShare\|C\$" /tmp/smb_guest.txt; then
@@ -85,14 +86,14 @@ else
         exit 0
     else
         echo "❌ Guest SMB enumeration also failed"
-        echo ""
-        echo "Guest enumeration output:"
+        echo "[DEBUG] Guest enumeration output:"
         cat /tmp/smb_guest.txt
         echo ""
         
         # Try with Administrator credentials (if we have them)
-        echo "Attempting Administrator SMB enumeration..."
-        smbclient -L "//$TARGET_IP" -U "Administrator" -N 2>&1 > /tmp/smb_admin.txt
+        echo "[DEBUG] Attempting Administrator SMB enumeration..."
+        echo "[DEBUG] Full command: smbclient -L //$TARGET_IP -U Administrator -W . -N"
+        smbclient -L "//$TARGET_IP" -U "Administrator" -W . -N 2>&1 > /tmp/smb_admin.txt
         
         if grep -q "TestShare\|C\$" /tmp/smb_admin.txt; then
             echo "✅ SMB connectivity successful with Administrator access - shares found"
@@ -102,8 +103,7 @@ else
             exit 0
         else
             echo "❌ Anonymous Administrator enumeration failed"
-            echo ""
-            echo "Administrator enumeration output:"
+            echo "[DEBUG] Administrator enumeration output:"
             cat /tmp/smb_admin.txt
             echo ""
             
@@ -115,12 +115,10 @@ else
                 echo "  Host: $TARGET_IP"
                 echo "  User: Administrator"
                 pwlen=${#WINDOWS_PASSWORD}
-                if [ -n "$WINDOWS_PASSWORD" ]; then
-                  echo "  Password: $WINDOWS_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
-                fi
+                echo "  Password: $WINDOWS_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
                 echo "  Domain: (default/empty)"
-                echo "[DEBUG] Full command: echo <password> | smbclient -L //$TARGET_IP -U Administrator"
-                echo "$WINDOWS_PASSWORD" | smbclient -L "//$TARGET_IP" -U "Administrator" 2>&1 > /tmp/smb_admin_auth.txt
+                echo "[DEBUG] Full command: echo \"$WINDOWS_PASSWORD\" | smbclient -L //$TARGET_IP -U Administrator -W ."
+                echo "$WINDOWS_PASSWORD" | smbclient -L "//$TARGET_IP" -U "Administrator" -W . 2>&1 > /tmp/smb_admin_auth.txt
                 rc=$?
                 echo "[DEBUG] smbclient exit code: $rc"
                 echo "[DEBUG] smbclient output:"
@@ -129,6 +127,7 @@ else
                 if grep -q "TestShare\|C\$" /tmp/smb_admin_auth.txt; then
                     echo "✅ SMB connectivity successful with Administrator password - shares found"
                     echo "WINDOWS SMB CONNECTIVITY OK"
+                    cat /tmp/smb_admin_auth.txt
                     rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt /tmp/smb_admin_auth.txt
                     exit 0
                 else
