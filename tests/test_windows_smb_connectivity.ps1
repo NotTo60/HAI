@@ -11,7 +11,13 @@ if (-not $TargetIP) {
 # DEBUG SECTION
 Write-Host "=== DEBUG SECTION ==="
 Write-Host "Timestamp: $(Get-Date -Format o)"
-Write-Host "Current user: $([System.Security.Principal.WindowsIdentity]::GetCurrent().Name)"
+if ($env:USERNAME) {
+    Write-Host "Current user: $($env:USERNAME)"
+} elseif ($env:USER) {
+    Write-Host "Current user: $($env:USER)"
+} else {
+    Write-Host "Current user: (unknown)"
+}
 Write-Host "OS: $([System.Environment]::OSVersion.VersionString)"
 Write-Host "Working directory: $(Get-Location)"
 Write-Host "Script arguments: TargetIP=$TargetIP, Password=(masked), Domain=(default/empty)"
