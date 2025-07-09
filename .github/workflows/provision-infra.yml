@@ -129,7 +129,20 @@ jobs:
               echo "Found existing subnets in 10.0.x.x range, deleting all to avoid conflicts: $SUBNET_IDS"
               for SUBNET_ID in $SUBNET_IDS; do
                 echo "Deleting subnet: $SUBNET_ID"
-                aws ec2 delete-subnet --subnet-id $SUBNET_ID || echo "Failed to delete subnet $SUBNET_ID"
+                if aws ec2 delete-subnet --subnet-id $SUBNET_ID; then
+                  echo "Successfully deleted subnet $SUBNET_ID"
+                else
+                  echo "Failed to delete subnet $SUBNET_ID. Printing dependency debug info:"
+                  echo "--- EC2 Instances in subnet ---"
+                  aws ec2 describe-instances --filters "Name=subnet-id,Values=$SUBNET_ID" --query 'Reservations[].Instances[].InstanceId' --output text
+                  echo "--- ENIs in subnet ---"
+                  aws ec2 describe-network-interfaces --filters "Name=subnet-id,Values=$SUBNET_ID" --query 'NetworkInterfaces[].NetworkInterfaceId' --output text
+                  echo "--- NAT Gateways in subnet ---"
+                  aws ec2 describe-nat-gateways --filter "Name=subnet-id,Values=$SUBNET_ID" --query 'NatGateways[].NatGatewayId' --output text
+                  echo "--- Route Table Associations ---"
+                  aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=$SUBNET_ID" --query 'RouteTables[].RouteTableId' --output text
+                  echo "--- End of dependency debug info for $SUBNET_ID ---"
+                fi
               done
             fi
           else
@@ -247,16 +260,13 @@ jobs:
               # First, ensure the key is in the correct format for OpenSSL
               echo "Converting key format for OpenSSL compatibility..."
               openssl rsa -in terraform/windows_rsa -out terraform/windows_rsa_openssl -outform PEM 2>/dev/null || echo "Key conversion failed"
-              
               # Try decryption with the converted key
               WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa_openssl 2>/dev/null || echo "DECRYPTION_FAILED")
-              
               # If that fails, try with the original key
               if [ "$WIN_AUTH_DATA" = "DECRYPTION_FAILED" ]; then
                 echo "Trying with original key format..."
                 WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey terraform/windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
               fi
-              
               if [ "$WIN_AUTH_DATA" != "DECRYPTION_FAILED" ]; then
                 echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $WIN_AUTH_DATA"
                 echo "Instance ID: $WINDOWS_INSTANCE_ID"
