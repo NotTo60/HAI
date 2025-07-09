@@ -26,6 +26,12 @@ if ($Password) {
 }
 Write-Host "=== END DEBUG SECTION ==="
 
+# Platform check: skip on non-Windows
+if ($env:OS -ne "Windows_NT") {
+    Write-Host "[INFO] Not running on Windows. Skipping PowerShell SMB test. Use Bash fallback for SMB testing."
+    exit 0
+}
+
 Write-Host "Testing SMB connectivity to $TargetIP..."
 
 # Retry loop for port 445
