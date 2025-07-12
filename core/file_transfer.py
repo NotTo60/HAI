@@ -22,6 +22,18 @@ except ImportError:
     logger.warning("Impacket not available, using placeholder functionality")
 
 
+def _fix_ssh_key_permissions(ssh_key_path):
+    """Fix SSH key file permissions to be secure."""
+    try:
+        if os.path.exists(ssh_key_path):
+            # Set permissions to 600 (owner read/write only)
+            os.chmod(ssh_key_path, 0o600)
+            logger.info(f"Fixed SSH key permissions for {ssh_key_path}")
+            return True
+    except Exception as e:
+        logger.warning(f"Could not fix SSH key permissions: {e}")
+    return False
+
 def _scp_transfer(conn, local_path, remote_path, upload=True):
     """Execute SCP transfer using subprocess."""
     try:
@@ -30,6 +42,8 @@ def _scp_transfer(conn, local_path, remote_path, upload=True):
         if upload:
             # Upload: scp local_path user@host:remote_path
             if hasattr(conn, 'ssh_key') and conn.ssh_key:
+                # Fix SSH key permissions before using
+                _fix_ssh_key_permissions(conn.ssh_key)
                 scp_cmd = f"scp {scp_options} -i {conn.ssh_key} {local_path} {conn.user}@{conn.host}:{remote_path}"
             else:
                 scp_cmd = f"scp {scp_options} {local_path} {conn.user}@{conn.host}:{remote_path}"
@@ -37,6 +51,8 @@ def _scp_transfer(conn, local_path, remote_path, upload=True):
         else:
             # Download: scp user@host:remote_path local_path
             if hasattr(conn, 'ssh_key') and conn.ssh_key:
+                # Fix SSH key permissions before using
+                _fix_ssh_key_permissions(conn.ssh_key)
                 scp_cmd = f"scp {scp_options} -i {conn.ssh_key} {conn.user}@{conn.host}:{remote_path} {local_path}"
             else:
                 scp_cmd = f"scp {scp_options} {conn.user}@{conn.host}:{remote_path} {local_path}"
