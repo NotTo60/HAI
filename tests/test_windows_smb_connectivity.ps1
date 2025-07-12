@@ -22,7 +22,10 @@ Write-Host "OS: $([System.Environment]::OSVersion.VersionString)"
 Write-Host "Working directory: $(Get-Location)"
 Write-Host "Script arguments: TargetIP=$TargetIP, Password=(masked), Domain=(default/empty)"
 if ($Password) {
-    Write-Host "Password (clear): $Password (length: $($Password.Length)) [CI DEBUG: DO NOT USE IN PRODUCTION]"
+    # Clean the password by removing null bytes and other non-printable characters
+    $cleanPassword = $Password -replace "`0", "" -replace "[^\x20-\x7E]", ""
+    Write-Host "Password (clear): $cleanPassword (length: $($cleanPassword.Length)) [CI DEBUG: DO NOT USE IN PRODUCTION]"
+    $Password = $cleanPassword
 }
 Write-Host "=== END DEBUG SECTION ==="
 

@@ -114,11 +114,13 @@ else
                 echo "[DEBUG] Using connection parameters:"
                 echo "  Host: $TARGET_IP"
                 echo "  User: Administrator"
-                pwlen=${#WINDOWS_PASSWORD}
-                echo "  Password: $WINDOWS_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
+                # Clean the password by removing null bytes and other non-printable characters
+                CLEAN_PASSWORD=$(echo "$WINDOWS_PASSWORD" | tr -d '\0' | tr -cd '[:print:]')
+                pwlen=${#CLEAN_PASSWORD}
+                echo "  Password: $CLEAN_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
                 echo "  Domain: (default/empty)"
-                echo "[DEBUG] Full command: echo \"$WINDOWS_PASSWORD\" | smbclient -L //$TARGET_IP -U Administrator -W ."
-                echo "$WINDOWS_PASSWORD" | smbclient -L "//$TARGET_IP" -U "Administrator" -W . 2>&1 > /tmp/smb_admin_auth.txt
+                echo "[DEBUG] Full command: echo \"$CLEAN_PASSWORD\" | smbclient -L //$TARGET_IP -U Administrator -W ."
+                echo "$CLEAN_PASSWORD" | smbclient -L "//$TARGET_IP" -U "Administrator" -W . 2>&1 > /tmp/smb_admin_auth.txt
                 rc=$?
                 echo "[DEBUG] smbclient exit code: $rc"
                 echo "[DEBUG] smbclient output:"
@@ -136,6 +138,9 @@ else
                     echo "Authenticated Administrator enumeration output:"
                     cat /tmp/smb_admin_auth.txt
                     echo ""
+                    # Fail the test if password authentication fails
+                    rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt /tmp/smb_admin_auth.txt
+                    exit 1
                 fi
             fi
             

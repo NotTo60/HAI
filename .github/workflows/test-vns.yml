@@ -85,7 +85,7 @@ jobs:
             if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
               # Decrypt the password using the private key
               echo "Decrypting password using private key..."
-              WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+              WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa 2>/dev/null | tr -d '\0' || echo "DECRYPTION_FAILED")
               
               if [ "$WIN_AUTH_DATA" != "DECRYPTION_FAILED" ]; then
                 echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $WIN_AUTH_DATA"
@@ -93,7 +93,7 @@ jobs:
                 echo "IP Address: ${{ inputs.windows_ip }}"
                 
                 # Store password for use in SMB tests
-                echo "$WIN_AUTH_DATA" > temp_auth.txt
+                echo "$WIN_AUTH_DATA" > temp_auth.txt  # pragma: allowlist secret
                 echo "Password saved to temp_auth.txt for SMB authentication"
               else
                 echo "❌ Failed to decrypt password"
