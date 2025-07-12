@@ -78,6 +78,7 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use
         logger.info(f"Compressed {local_path} to {tar_path}")
         path_to_send = tar_path
     
+    from utils.md5sum import md5sum
     local_md5 = md5sum(path_to_send)
     logger.info(f"Uploading {path_to_send} to {remote_path} (MD5: {local_md5})")
     
