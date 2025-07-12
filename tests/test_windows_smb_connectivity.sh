@@ -62,7 +62,10 @@ echo "[DEBUG] Full command: smbclient -L //$TARGET_IP -U "" -N"
 smbclient -L "//$TARGET_IP" -U "" -N 2>&1 > /tmp/smb_anonymous.txt
 
 if grep -q "TestShare\|C\$" /tmp/smb_anonymous.txt; then
-    echo "✅ SMB connectivity successful - shares found"
+    echo ""
+    echo "=== FINAL RESULT ==="
+    echo "✅ SMB CONNECTIVITY SUCCESSFUL"
+    echo "Anonymous access worked - shares found"
     echo "WINDOWS SMB CONNECTIVITY OK"
     cat /tmp/smb_anonymous.txt
     rm -f /tmp/smb_anonymous.txt
@@ -79,7 +82,10 @@ else
     smbclient -L "//$TARGET_IP" -U "guest" -N 2>&1 > /tmp/smb_guest.txt
     
     if grep -q "TestShare\|C\$" /tmp/smb_guest.txt; then
-        echo "✅ SMB connectivity successful with guest access - shares found"
+        echo ""
+        echo "=== FINAL RESULT ==="
+        echo "✅ SMB CONNECTIVITY SUCCESSFUL"
+        echo "Guest access worked - shares found"
         echo "WINDOWS SMB CONNECTIVITY OK"
         cat /tmp/smb_guest.txt
         rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt
@@ -96,7 +102,10 @@ else
         smbclient -L "//$TARGET_IP" -U "Administrator" -W . -N 2>&1 > /tmp/smb_admin.txt
         
         if grep -q "TestShare\|C\$" /tmp/smb_admin.txt; then
-            echo "✅ SMB connectivity successful with Administrator access - shares found"
+            echo ""
+            echo "=== FINAL RESULT ==="
+            echo "✅ SMB CONNECTIVITY SUCCESSFUL"
+            echo "Administrator access (no password) worked - shares found"
             echo "WINDOWS SMB CONNECTIVITY OK"
             cat /tmp/smb_admin.txt
             rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt
@@ -127,7 +136,10 @@ else
                 cat /tmp/smb_admin_auth.txt
                 
                 if grep -q "TestShare\|C\$" /tmp/smb_admin_auth.txt; then
-                    echo "✅ SMB connectivity successful with Administrator password - shares found"
+                    echo ""
+                    echo "=== FINAL RESULT ==="
+                    echo "✅ SMB CONNECTIVITY SUCCESSFUL"
+                    echo "Administrator access with password worked - shares found"
                     echo "WINDOWS SMB CONNECTIVITY OK"
                     cat /tmp/smb_admin_auth.txt
                     rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt /tmp/smb_admin_auth.txt
@@ -150,6 +162,10 @@ else
             echo "- Port 445: Reachable"
             echo "- SMB enumeration: Failed for all authentication methods"
             rm -f /tmp/smb_anonymous.txt /tmp/smb_guest.txt /tmp/smb_admin.txt /tmp/smb_admin_auth.txt
+            echo ""
+            echo "=== FINAL RESULT ==="
+            echo "❌ SMB CONNECTIVITY FAILED"
+            echo "All authentication methods (anonymous, guest, Administrator) failed to enumerate shares."
             exit 1
         fi
     fi
