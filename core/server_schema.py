@@ -8,9 +8,7 @@ from utils.constants import (
 class TunnelHop(BaseModel):
     ip: str
     user: str
-    method: Literal[
-        tuple(SUPPORTED_CONNECTION_METHODS)
-    ]
+    method: Literal["ssh", "smb", "custom", "ftp", "impacket"]
     port: Optional[int] = None
     tool: Optional[str] = None
 
@@ -29,20 +27,14 @@ class ServerEntry(BaseModel):
     user: str
     password: Optional[str]
     ssh_key: Optional[str]
-    connection_method: Literal[
-        tuple(SUPPORTED_CONNECTION_METHODS)
-    ]
+    connection_method: Literal["ssh", "smb", "custom", "ftp", "impacket"]
     port: int
     active: bool
-    grade: Literal[
-        tuple(SERVER_GRADES)
-    ]
+    grade: Literal["critical", "must-win", "important", "nice-to-have", "low-priority"]
     tool: Optional[str]
-    os: Literal[
-        tuple(SUPPORTED_OS_TYPES)
-    ]
+    os: Literal["linux", "windows", "unknown"]
     tunnel_routes: List[TunnelRoute]
     file_transfer_protocol: Optional[
-        Literal[tuple(SUPPORTED_FILE_TRANSFER_PROTOCOLS)]
-    ] = SUPPORTED_FILE_TRANSFER_PROTOCOLS[0]
+        Literal["sftp", "scp", "smb", "ftp"]
+    ] = "sftp"
     config: Optional[Dict[str, Any]] = None

@@ -60,10 +60,8 @@ class ImpacketConnection:
         """Execute a command via Impacket."""
         try:
             if IMPACKET_AVAILABLE and self.connection:
-                # Use Impacket's RemoteShell for command execution
-                from impacket.examples.remoteshell import RemoteShell
-                shell = RemoteShell(self.connection)
-                output = shell.onecmd(command)
+                # Use direct SMB command execution
+                output = self.connection.execute(command)
                 return {
                     'success': True,
                     'output': output,
@@ -195,19 +193,13 @@ class ImpacketWrapper(BaseConnector):
         if IMPACKET_AVAILABLE:
             try:
                 # Try multiple methods for command execution
-                # Method 1: Use Impacket's RemoteShell
+                # Method 1: Use direct SMB command execution
                 try:
-                    try:
-                        from impacket.examples.remoteshell import RemoteShell
-                    except ImportError as ie:
-                        logger.error(f"impacket.examples.remoteshell not found: {ie}")
-                        return "", "impacket.examples.remoteshell not found: install impacket from source with examples."
-                    shell = RemoteShell(self.connection)
-                    result = shell.onecmd(command)
+                    result = self.connection.execute(command)
                     logger.info(f"Result: {result}")
                     return result, ""
                 except Exception as e:
-                    logger.warning(f"RemoteShell failed: {e}")
+                    logger.warning(f"SMB command execution failed: {e}")
                 
                 # Method 2: Use WMI for command execution
                 try:

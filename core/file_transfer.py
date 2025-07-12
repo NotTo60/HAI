@@ -47,7 +47,6 @@ def _scp_transfer(conn, local_path, remote_path, upload=True):
             shlex.split(scp_cmd),
             capture_output=True,
             text=True,
-            env=env,
             timeout=conn.timeout if hasattr(conn, 'timeout') else 30
         )
         

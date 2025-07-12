@@ -17,7 +17,7 @@ try:
     SMB_AVAILABLE = True
 except ImportError:
     SMB_AVAILABLE = False
-    logger.warning("smbprotocol not available, using placeholder SMB functionality")
+    logger.warning("smb.SMBConnection not available, using placeholder SMB functionality")
 
 
 class SMBConnection:
