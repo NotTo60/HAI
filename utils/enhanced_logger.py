@@ -136,6 +136,31 @@ class EnhancedLogger:
         if results:
             message += f" | Results: {json.dumps(results)}"
         self.info(message)
+    
+    def log_command(self, command, output=None, error=None, execution_time=None):
+        """Log command execution details."""
+        message = f"Command executed: {command}"
+        if execution_time:
+            message += f" (took {execution_time:.2f}s)"
+        if output:
+            # Truncate output if too long
+            if len(output) > MAX_OUTPUT_LENGTH:
+                output = output[:MAX_OUTPUT_LENGTH] + "..."
+            message += f" | Output: {output}"
+        if error:
+            message += f" | Error: {error}"
+        self.info(message)
+    
+    def log_file_transfer(self, operation, local_path, remote_path, status, file_size=None, execution_time=None, error=None):
+        """Log file transfer details."""
+        message = f"File {operation}: {local_path} -> {remote_path} | Status: {status}"
+        if execution_time:
+            message += f" (took {execution_time:.2f}s)"
+        if file_size:
+            message += f" | Size: {file_size} bytes"
+        if error:
+            message += f" | Error: {error}"
+        self.info(message)
 
 
 # Global logger instance
