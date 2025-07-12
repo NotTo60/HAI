@@ -149,7 +149,7 @@ Example entry:
   "dns": "srv01.local",
   "location": "datacenter-x",
   "user": "admin",
-  "password": "pass123",
+  "password": "pass123",  # pragma: allowlist secret
   "ssh_key": "~/.ssh/id_rsa",
   "connection_method": "ssh",
   "port": 22,
@@ -204,7 +204,7 @@ smb = SMBConnector.connect_cls(
     host="192.168.1.100",
     port=445,
     user="administrator",
-    password="password123",
+    password="password123",  # pragma: allowlist secret
     domain="WORKGROUP"
 )
 
@@ -225,7 +225,7 @@ from connectors.impacket_wrapper import ImpacketWrapper
 impacket = ImpacketWrapper.connect_cls(
     host="192.168.1.100",
     user="administrator",
-    password="password123",
+    password="password123",  # pragma: allowlist secret
     domain="WORKGROUP"
 )
 
@@ -658,7 +658,7 @@ Each connector (SSH, SMB, Impacket) supports two ways to connect:
 Create an object, then call `connect()`:
 ```python
 from connectors.ssh_connector import SSHConnector
-ssh = SSHConnector(host="1.2.3.4", port=22, user="me", password="pw")
+ssh = SSHConnector(host="1.2.3.4", port=22, user="me", password="pw")  # pragma: allowlist secret
 ssh.connect()
 # ... use ssh ...
 ssh.disconnect()
@@ -668,7 +668,7 @@ ssh.disconnect()
 Call `connect_cls` directly on the class for a one-liner:
 ```python
 from connectors.ssh_connector import SSHConnector
-ssh = SSHConnector.connect_cls(host="1.2.3.4", port=22, user="me", password="pw")
+ssh = SSHConnector.connect_cls(host="1.2.3.4", port=22, user="me", password="pw")  # pragma: allowlist secret
 # ... use ssh ...
 ssh.disconnect()
 ```
