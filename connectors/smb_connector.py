@@ -74,7 +74,10 @@ class SMBConnector(BaseConnector):
     
     def __init__(self, host: str, user: str, password: str = None, 
                  domain: str = "", timeout: int = DEFAULT_TIMEOUT, client_id: str = None):
-        super().__init__(host, user, password, timeout)
+        self.host = host
+        self.user = user
+        self.password = password
+        self.timeout = timeout
         self.domain = domain
         self.client_id = client_id
         self.smb_connection = None
@@ -111,3 +114,17 @@ class SMBConnector(BaseConnector):
             return False
         
         return self.smb_connection.health_check()
+    
+    def exec_command(self, command: str) -> tuple:
+        """Execute a command via SMB (placeholder)."""
+        if not self.smb_connection:
+            raise Exception("SMB connection not established.")
+        logger.info(f"Executing command via SMB: {command}")
+        # Placeholder for actual command execution
+        result = f"Simulated SMB output for: {command}"
+        logger.info(f"Result: {result}")
+        return result, ""
+    
+    def is_alive(self) -> bool:
+        """Check if the SMB connection is still alive and functional."""
+        return self.health_check()
