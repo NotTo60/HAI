@@ -42,8 +42,14 @@ class TunnelBuilder:
                 client_id=config.get("client_id"),
             )
         elif method == "ftp":
-            # Placeholder for future FTPConnector
-            raise NotImplementedError("FTPConnector not implemented yet.")
+            from connectors.ftp_connector import FTPConnector
+            conn = FTPConnector(
+                host=server.ip,
+                user=server.user,
+                password=server.password,
+                timeout=config.get("timeout", DEFAULT_TIMEOUT),
+                client_id=config.get("client_id"),
+            )
         else:
             raise Exception(f"Unknown connection method: {method}")
         conn.connect()

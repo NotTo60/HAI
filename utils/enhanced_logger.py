@@ -123,6 +123,18 @@ class EnhancedLogger:
             message = f"{message} | Context: {json.dumps(context)}"
         self.info(message)
     
+    def log_warning(self, message, context=None):
+        """Log warning message with optional context."""
+        if context:
+            message = f"{message} | Context: {json.dumps(context)}"
+        self.warning(message)
+    
+    def log_error(self, message, context=None):
+        """Log error message with optional context."""
+        if context:
+            message = f"{message} | Context: {json.dumps(context)}"
+        self.error(message)
+    
     def log_operation_start(self, operation, servers_count=None):
         """Log the start of an operation."""
         message = f"Starting operation: {operation}"
@@ -194,4 +206,18 @@ def log_info(message: str, context: Dict[str, Any] = None):
     get_enhanced_logger().log_info(message, context)
 
 def log_debug(message: str, context: Dict[str, Any] = None):
-    get_enhanced_logger().log_info(f"DEBUG: {message}", context) 
+    get_enhanced_logger().log_info(f"DEBUG: {message}", context)
+
+def log_performance(operation: str, duration: float, servers_count: int = None):
+    """Log performance metrics."""
+    message = f"Performance: {operation} took {duration:.2f}s"
+    if servers_count:
+        message += f" for {servers_count} servers"
+    get_enhanced_logger().info(message)
+
+def log_server_operation(server_name: str, operation: str, status: str, details: str = None):
+    """Log server-specific operation details."""
+    message = f"Server {server_name}: {operation} - {status}"
+    if details:
+        message += f" | {details}"
+    get_enhanced_logger().info(message, {"server": server_name, "operation": operation, "status": status}) 

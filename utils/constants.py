@@ -82,4 +82,21 @@ ENHANCED_LOG_BUFFER_SIZE = 1000  # Number of log entries to buffer before flushi
 MAX_OUTPUT_LENGTH = 4096  # Maximum length for output truncation
 MAX_RESULT_LENGTH = 4096  # Maximum length for result truncation
 
-STATE_FILE_EXTENSION = '.json'  # Default extension for state files 
+# State management constants
+STATE_FILE_EXTENSION = '.json'  # Default extension for state files
+STATE_COMPRESSION_ENABLED = True  # Enable compression for state files
+STATE_ENCRYPTION_ENABLED = True  # Enable encryption for state files
+
+# File transfer constants
+MAX_FILE_SIZE = 1024 * 1024 * 100  # 100MB max file size
+CHUNK_SIZE = 8192  # Default chunk size for file transfers
+RETRY_ATTEMPTS = 3  # Number of retry attempts for failed operations
+
+# Connection constants
+CONNECTION_TIMEOUT = 30  # Default connection timeout
+COMMAND_TIMEOUT = 60  # Default command execution timeout
+FILE_TRANSFER_TIMEOUT = 300  # Default file transfer timeout
+
+# Security constants
+ENCRYPTION_KEY_LENGTH = 32  # Length of encryption keys
+HASH_ALGORITHM = "sha256"  # Default hash algorithm 

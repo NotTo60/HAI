@@ -8,6 +8,13 @@ pyyaml>=6.0
 tqdm>=4.64
 ruff>=0.1.0
 pytest>=7.0
+cryptography>=3.0
+bcrypt>=3.0
+pynacl>=1.0
+
+# Enhanced logging and state management
+structlog>=21.0
+colorama>=0.4.0
 
 # Dev & CI tools
 pre-commit

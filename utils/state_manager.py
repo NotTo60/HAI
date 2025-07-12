@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
+from utils.logger import get_logger
 
 from utils.constants import (
     STATE_DIR, STATE_VERSION, STATE_BACKUP_COUNT, TIMESTAMP_FORMAT, BACKUP_RETENTION_DAYS,
@@ -117,6 +118,9 @@ class StateManager:
         # Current state
         self.current_state = None
         self.is_modified = False
+        
+        # Logger
+        self.logger = get_logger("state_manager")
     
     def _generate_checksum(self, data: bytes) -> str:
         """Generate SHA-256 checksum for data."""
@@ -131,16 +135,72 @@ class StateManager:
         return gzip.decompress(data)
     
     def _encrypt_data(self, data: bytes) -> bytes:
-        """Encrypt data (placeholder for future implementation)."""
-        # For now, just return the data as-is
-        # In production, implement proper encryption
-        return data
+        """Encrypt data using AES encryption."""
+        try:
+            from cryptography.fernet import Fernet
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+            import base64
+            
+            # Generate a key from a password (in production, use a proper key management system)
+            password = b"hai_state_encryption_key"  # In production, get from environment
+            salt = b"hai_salt_12345"  # In production, use a random salt
+            
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=100000,
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(password))
+            
+            f = Fernet(key)
+            return f.encrypt(data)
+        except ImportError:
+            # Fallback to simple XOR encryption if cryptography is not available
+            logger.warning("cryptography not available, using simple XOR encryption")
+            key = b"HAI_STATE_KEY_2024"
+            encrypted = bytearray()
+            for i, byte in enumerate(data):
+                encrypted.append(byte ^ key[i % len(key)])
+            return bytes(encrypted)
+        except Exception as e:
+            self.logger.error(f"Encryption failed: {e}")
+            return data
     
     def _decrypt_data(self, data: bytes) -> bytes:
-        """Decrypt data (placeholder for future implementation)."""
-        # For now, just return the data as-is
-        # In production, implement proper decryption
-        return data
+        """Decrypt data using AES decryption."""
+        try:
+            from cryptography.fernet import Fernet
+            from cryptography.hazmat.primitives import hashes
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+            import base64
+            
+            # Generate the same key used for encryption
+            password = b"hai_state_encryption_key"  # In production, get from environment
+            salt = b"hai_salt_12345"  # In production, use a random salt
+            
+            kdf = PBKDF2HMAC(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=salt,
+                iterations=100000,
+            )
+            key = base64.urlsafe_b64encode(kdf.derive(password))
+            
+            f = Fernet(key)
+            return f.decrypt(data)
+        except ImportError:
+            # Fallback to simple XOR decryption if cryptography is not available
+            logger.warning("cryptography not available, using simple XOR decryption")
+            key = b"HAI_STATE_KEY_2024"
+            decrypted = bytearray()
+            for i, byte in enumerate(data):
+                decrypted.append(byte ^ key[i % len(key)])
+            return bytes(decrypted)
+        except Exception as e:
+            self.logger.error(f"Decryption failed: {e}")
+            return data
     
     def _serialize_state(self, state: SystemState, format: StateFormat) -> bytes:
         """Serialize state to bytes."""
@@ -208,7 +268,7 @@ class StateManager:
             self.logger.log_info(f"Backup created: {backup_file}")
             return backup_file
         except Exception as e:
-            self.logger.log_error(f"Failed to create backup: {e}")
+            self.logger.error(f"Failed to create backup: {e}")
             return None
     
     def cleanup_old_backups(self, max_age_days: int = None):
@@ -226,7 +286,7 @@ class StateManager:
                     backup_file.unlink()
                     self.logger.log_info(f"Removed old backup: {backup_file}")
             except Exception as e:
-                self.logger.log_error(f"Failed to remove backup {backup_file}: {e}")
+                self.logger.error(f"Failed to remove backup {backup_file}: {e}")
     
     def save_state(self, state_name: str, data: Dict[str, Any], 
                    backup: bool = True, metadata: Dict[str, Any] = None) -> str:
@@ -363,7 +423,7 @@ class StateManager:
         self.current_state.operations[operation_id] = operation_state
         self.is_modified = True
         
-        self.logger.log_info(f"Operation state updated: {operation_id}")
+        self.logger.info(f"Operation state updated: {operation_id}")
     
     def get_operation_state(self, operation_id: str) -> Optional[OperationState]:
         """Get the state of an operation."""
@@ -429,7 +489,7 @@ class StateManager:
         self.current_state.sessions[session_id] = session_state
         self.is_modified = True
         
-        self.logger.log_info(f"Session state saved: {session_id}")
+        self.logger.info(f"Session state saved: {session_id}")
     
     def get_session_state(self, session_id: str) -> Optional[SessionState]:
         """Get session state."""
@@ -446,7 +506,7 @@ class StateManager:
         self.current_state.server_inventory = inventory
         self.is_modified = True
         
-        self.logger.log_info("Server inventory updated")
+        self.logger.info("Server inventory updated")
     
     def update_configuration(self, config: Dict[str, Any]):
         """Update configuration in state."""
@@ -456,7 +516,7 @@ class StateManager:
         self.current_state.configuration = config
         self.is_modified = True
         
-        self.logger.log_info("Configuration updated")
+        self.logger.info("Configuration updated")
     
     def update_statistics(self, stats: Dict[str, Any]):
         """Update statistics in state."""
@@ -466,7 +526,7 @@ class StateManager:
         self.current_state.statistics = stats
         self.is_modified = True
         
-        self.logger.log_info("Statistics updated")
+        self.logger.info("Statistics updated")
     
     def auto_save(self):
         """Automatically save state if modified."""

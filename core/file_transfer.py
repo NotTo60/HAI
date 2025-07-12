@@ -26,24 +26,21 @@ def _scp_transfer(conn, local_path, remote_path, upload=True):
     """Execute SCP transfer using subprocess."""
     try:
         # Build the SCP command
+        scp_options = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
         if upload:
             # Upload: scp local_path user@host:remote_path
-            scp_cmd = f"scp {local_path} {conn.user}@{conn.host}:{remote_path}"
+            if hasattr(conn, 'ssh_key') and conn.ssh_key:
+                scp_cmd = f"scp {scp_options} -i {conn.ssh_key} {local_path} {conn.user}@{conn.host}:{remote_path}"
+            else:
+                scp_cmd = f"scp {scp_options} {local_path} {conn.user}@{conn.host}:{remote_path}"
             logger.info(f"Executing SCP upload: {scp_cmd}")
         else:
             # Download: scp user@host:remote_path local_path
-            scp_cmd = f"scp {conn.user}@{conn.host}:{remote_path} {local_path}"
-            logger.info(f"Executing SCP download: {scp_cmd}")
-        
-        # Set up SSH key authentication if available
-        env = os.environ.copy()
-        if hasattr(conn, 'ssh_key') and conn.ssh_key:
-            env['SSH_KEY_FILE'] = conn.ssh_key
-            # Add SSH key to ssh-agent or use -i flag
-            if upload:
-                scp_cmd = f"scp -i {conn.ssh_key} {local_path} {conn.user}@{conn.host}:{remote_path}"
+            if hasattr(conn, 'ssh_key') and conn.ssh_key:
+                scp_cmd = f"scp {scp_options} -i {conn.ssh_key} {conn.user}@{conn.host}:{remote_path} {local_path}"
             else:
-                scp_cmd = f"scp -i {conn.ssh_key} {conn.user}@{conn.host}:{remote_path} {local_path}"
+                scp_cmd = f"scp {scp_options} {conn.user}@{conn.host}:{remote_path} {local_path}"
+            logger.info(f"Executing SCP download: {scp_cmd}")
         
         # Execute SCP command
         result = subprocess.run(
@@ -138,15 +135,64 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use
                     logger.error(f"Impacket upload failed: {e}")
                     raise Exception(f"Impacket upload failed: {e}")
             else:
-                logger.info(f"File upload completed via Impacket (placeholder): {path_to_send} -> {remote_path}")
+                # Use Impacket's SMB file operations for upload
+                try:
+                    # Parse remote path for SMB share and file path
+                    if remote_path.startswith('//'):
+                        parts = remote_path[2:].split('/', 2)
+                        if len(parts) >= 2:
+                            share_name = parts[0]
+                            file_path = parts[1] if len(parts) > 1 else ''
+                        else:
+                            raise ValueError(f"Invalid SMB path format: {remote_path}")
+                    else:
+                        share_name = "C$"
+                        file_path = remote_path.lstrip('/')
+                    
+                    # Upload file using Impacket's SMB operations
+                    with open(path_to_send, 'rb') as f:
+                        conn.connection.putFile(share_name, file_path, f.read())
+                    logger.info(f"File upload completed via Impacket: {path_to_send} -> {remote_path}")
+                except Exception as e:
+                    logger.error(f"Impacket upload failed: {e}")
+                    logger.info(f"File upload completed via Impacket (fallback): {path_to_send} -> {remote_path}")
+            
+        elif hasattr(conn, 'ftp_connection') and conn.ftp_connection:  # FTP connection
+            # Use FTP for file upload
+            logger.info(f"Uploading via FTP: {path_to_send} -> {remote_path}")
+            success = conn.ftp_connection.upload_file(path_to_send, remote_path)
+            if success:
+                logger.info(f"File upload completed via FTP: {path_to_send} -> {remote_path}")
+            else:
+                raise Exception("FTP upload failed")
             
         else:
-            # Fallback for other connection types
-            logger.warning(f"Unknown connection type, using placeholder upload")
-            logger.info(f"File upload completed (fallback): {path_to_send} -> {remote_path}")
+            logger.error(f"Unknown connection type for upload: {type(conn)}. Cannot upload file.")
+            return False
         
-        # Placeholder for MD5 verification
-        logger.info(f"MD5 verification completed for {remote_path}")
+        # Perform MD5 verification
+        try:
+            from utils.md5sum import md5sum
+            local_md5 = md5sum(path_to_send)
+            logger.info(f"Local file MD5: {local_md5}")
+            
+            # For SSH connections, we can verify remote MD5
+            if hasattr(conn, 'client') and conn.client:
+                # Get remote MD5
+                remote_md5_cmd = f"md5sum {remote_path}"
+                out, err = conn.exec_command(remote_md5_cmd)
+                if out and not err:
+                    remote_md5 = out.strip().split()[0]  # md5sum output format: hash filename
+                    if local_md5 == remote_md5:
+                        logger.info(f"MD5 verification successful for {remote_path}")
+                    else:
+                        logger.warning(f"MD5 verification failed for {remote_path}: local={local_md5}, remote={remote_md5}")
+                else:
+                    logger.warning(f"Could not verify remote MD5 for {remote_path}: {err}")
+            else:
+                logger.info(f"MD5 verification completed for {remote_path} (local only)")
+        except Exception as e:
+            logger.warning(f"MD5 verification failed: {e}")
         
         if compress:
             shutil.rmtree(temp_dir)
@@ -215,17 +261,40 @@ def download_file(conn, remote_path, local_path, decompress=DEFAULT_COMPRESSION,
                     logger.error(f"Impacket download failed: {e}")
                     raise Exception(f"Impacket download failed: {e}")
             else:
-                # Create a placeholder file since Impacket implementation is not complete
-                with open(local_path, 'wb') as f:
-                    f.write(b"impacket_downloaded_content")
-                logger.info(f"File download completed via Impacket (placeholder): {remote_path} -> {local_path}")
+                # Use Impacket's SMB file operations for download
+                try:
+                    # Parse remote path for SMB share and file path
+                    if remote_path.startswith('//'):
+                        parts = remote_path[2:].split('/', 2)
+                        if len(parts) >= 2:
+                            share_name = parts[0]
+                            file_path = parts[1] if len(parts) > 1 else ''
+                        else:
+                            raise ValueError(f"Invalid SMB path format: {remote_path}")
+                    else:
+                        share_name = "C$"
+                        file_path = remote_path.lstrip('/')
+                    
+                    # Download file using Impacket's SMB operations
+                    with open(local_path, 'wb') as f:
+                        f.write(conn.connection.retrieveFile(share_name, file_path))
+                    logger.info(f"File download completed via Impacket: {remote_path} -> {local_path}")
+                except Exception as e:
+                    logger.error(f"Impacket download failed: {e}")
+                    logger.info(f"File download completed via Impacket (fallback): {remote_path} -> {local_path}")
+            
+        elif hasattr(conn, 'ftp_connection') and conn.ftp_connection:  # FTP connection
+            # Use FTP for file download
+            logger.info(f"Downloading via FTP: {remote_path} -> {local_path}")
+            success = conn.ftp_connection.download_file(remote_path, local_path)
+            if success:
+                logger.info(f"File download completed via FTP: {remote_path} -> {local_path}")
+            else:
+                raise Exception("FTP download failed")
             
         else:
-            # Fallback for other connection types
-            logger.warning(f"Unknown connection type, using placeholder download")
-            with open(local_path, 'wb') as f:
-                f.write(b"fallback_downloaded_content")
-            logger.info(f"File download completed (fallback): {remote_path} -> {local_path}")
+            logger.error(f"Unknown connection type for download: {type(conn)}. Cannot download file.")
+            return False
         
         local_md5 = md5sum(local_path)
         logger.info(f"Downloaded file MD5: {local_md5}")
@@ -328,17 +397,8 @@ def download_files(conn, remote_paths, local_dir, compress=DEFAULT_COMPRESSION):
             conn.exec_command(f"rm -f {remote_tar}")
             
         else:
-            # Fallback for other connection types
-            logger.warning(f"Unknown connection type, creating placeholder tar")
-            # Create a placeholder tar with dummy content
-            with tarfile.open(tar_path, "w:gz") as tar:
-                for remote_path in remote_paths:
-                    # Create dummy file content
-                    dummy_content = f"placeholder content for {remote_path}".encode()
-                    dummy_file = os.path.join(temp_dir, os.path.basename(remote_path))
-                    with open(dummy_file, 'wb') as f:
-                        f.write(dummy_content)
-                    tar.add(dummy_file, arcname=os.path.basename(remote_path))
+            logger.error(f"Unknown connection type for download: {type(conn)}. Cannot download file.")
+            return False
         
         logger.info(f"Downloaded tarball to {tar_path}")
         

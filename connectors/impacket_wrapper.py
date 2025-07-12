@@ -50,9 +50,8 @@ class ImpacketConnection:
                 logger.info(f"Connected to {self.host} as {self.user} using Impacket")
                 return True
             else:
-                # Placeholder for actual Impacket connection
-                logger.info(f"Connecting to {self.host} as {self.user}")
-                return True
+                logger.error("Impacket not available: cannot establish real connection. Install impacket for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"Failed to connect to {self.host}: {e}")
             return False
@@ -71,12 +70,11 @@ class ImpacketConnection:
                     'error': None
                 }
             else:
-                # Placeholder for actual command execution
-                logger.info(f"Executing command: {command}")
+                logger.error("Impacket not available: cannot execute command. Install impacket for full functionality.")
                 return {
-                    'success': True,
-                    'output': f"Command executed: {command}",
-                    'error': None
+                    'success': False,
+                    'output': None,
+                    'error': "Impacket not available: install impacket for command execution."
                 }
         except Exception as e:
             logger.error(f"Failed to execute command: {e}")
@@ -94,8 +92,8 @@ class ImpacketConnection:
                 self.connection.listShares()
                 return True
             else:
-                # Placeholder for actual health check
-                return True
+                logger.error("Impacket not available: cannot perform health check. Install impacket for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False
@@ -175,7 +173,8 @@ class ImpacketWrapper(BaseConnector):
                 self.connection = None
                 raise
         else:
-            logger.info("Impacket connection established (simulated).")
+            logger.error("Impacket not available: cannot establish real connection. Install impacket for full functionality.")
+            raise Exception("Impacket not available: install impacket for connection establishment.")
 
     def disconnect(self):
         if self.connection:
@@ -195,20 +194,69 @@ class ImpacketWrapper(BaseConnector):
         
         if IMPACKET_AVAILABLE:
             try:
-                # Use Impacket's RemoteShell for command execution
-                from impacket.examples.remoteshell import RemoteShell
-                shell = RemoteShell(self.connection)
-                result = shell.onecmd(command)
-                logger.info(f"Result: {result}")
-                return result, ""
+                # Try multiple methods for command execution
+                # Method 1: Use Impacket's RemoteShell
+                try:
+                    try:
+                        from impacket.examples.remoteshell import RemoteShell
+                    except ImportError as ie:
+                        logger.error(f"impacket.examples.remoteshell not found: {ie}")
+                        return "", "impacket.examples.remoteshell not found: install impacket from source with examples."
+                    shell = RemoteShell(self.connection)
+                    result = shell.onecmd(command)
+                    logger.info(f"Result: {result}")
+                    return result, ""
+                except Exception as e:
+                    logger.warning(f"RemoteShell failed: {e}")
+                
+                # Method 2: Use WMI for command execution
+                try:
+                    from impacket.dcerpc.v5 import wmi
+                    from impacket.dcerpc.v5.dtypes import NULL
+                    
+                    # Create WMI connection
+                    dce = self.connection.get_dce_rpc()
+                    dce.connect()
+                    dce.bind(wmi.MSRPC_UUID_WMI)
+                    
+                    # Execute command via WMI
+                    wmi_conn = wmi.WMI(dce)
+                    result = wmi_conn.exec_query(f"SELECT * FROM Win32_Process WHERE Name='cmd.exe' AND CommandLine='{command}'")
+                    
+                    return str(result), ""
+                except Exception as e:
+                    logger.warning(f"WMI execution failed: {e}")
+                
+                # Method 3: Use SMB for file-based command execution
+                try:
+                    # Create a temporary batch file with the command
+                    temp_batch = f"temp_cmd_{hash(command)}.bat"
+                    batch_content = f"@echo off\n{command}\n"
+                    
+                    # Upload batch file
+                    self.connection.putFile("C$", temp_batch, batch_content.encode())
+                    
+                    # Execute batch file
+                    exec_cmd = f"cmd /c C:\\{temp_batch}"
+                    result = self.connection.execute(exec_cmd)
+                    
+                    # Clean up
+                    self.connection.deleteFile("C$", temp_batch)
+                    
+                    return str(result), ""
+                except Exception as e:
+                    logger.warning(f"SMB file execution failed: {e}")
+                
+                # All methods failed
+                logger.error("All Impacket command execution methods failed.")
+                return "", "All Impacket command execution methods failed."
+                
             except Exception as e:
                 logger.error(f"Command execution failed: {e}")
                 return "", str(e)
         else:
-            # Simulated output for testing
-            result = f"Simulated output for: {command}"
-            logger.info(f"Result: {result}")
-            return result, ""
+            logger.error("Impacket not available: cannot execute command. Install impacket for full functionality.")
+            return "", "Impacket not available: install impacket for command execution."
 
     def is_alive(self):
         """Check if the Impacket connection is still alive and functional."""
@@ -220,8 +268,8 @@ class ImpacketWrapper(BaseConnector):
                 self.connection.listShares()
                 return True
             else:
-                # For now, return True if connection exists (simulated)
-                return True
+                logger.error("Impacket not available: cannot perform health check. Install impacket for full functionality.")
+                return False
         except Exception as e:
             logger.warning(f"Impacket connection test failed: {e}")
             return False

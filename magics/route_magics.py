@@ -70,10 +70,19 @@ class RouteMagics(Magics):
             if not route.active:
                 try:
                     # Implement dry-run connection check
-                    route.active = True
-                    logger.info(f"Route '{route.name}' re-activated")
-                except Exception:
-                    logger.warning(f"Route '{route.name}' still unreachable")
+                    from core.connection_manager import connect_with_fallback
+                    from core.tunnel_builder import TunnelBuilder
+                    
+                    # Create a test connection to check if route is reachable
+                    test_conn = TunnelBuilder.build(srv, route)
+                    if test_conn and test_conn.is_alive():
+                        route.active = True
+                        logger.info(f"Route '{route.name}' re-activated")
+                        test_conn.disconnect()
+                    else:
+                        logger.warning(f"Route '{route.name}' still unreachable")
+                except Exception as e:
+                    logger.warning(f"Route '{route.name}' still unreachable: {e}")
         
         logger.info(f"Routes refreshed for host '{host}'")
         return f"Routes refreshed for host '{host}'"

@@ -52,9 +52,8 @@ class SMBConnection:
                 logger.info(f"Available shares: {[share.name for share in shares]}")
                 return True
             else:
-                # Placeholder for actual SMB connection
-                logger.info(f"Connecting to SMB on {self.host} as {self.user}")
-                return True
+                logger.error("smbprotocol not available: cannot establish real SMB connection. Install smbprotocol for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"Failed to connect to SMB on {self.host}: {e}")
             return False
@@ -66,9 +65,8 @@ class SMBConnection:
                 shares = self.connection.listShares()
                 return [share.name for share in shares]
             else:
-                # Placeholder for actual share listing
-                logger.info(f"Listing shares on {self.host}")
-                return ["C$", "ADMIN$", "TestShare"]
+                logger.error("smbprotocol not available or connection not established: cannot list shares.")
+                return []
         except Exception as e:
             logger.error(f"Failed to list shares: {e}")
             return []
@@ -90,18 +88,17 @@ class SMBConnection:
                     # Assume default share and path
                     share_name = "C$"
                     file_path = remote_path.lstrip('/')
-                
                 with open(local_path, 'rb') as f:
-                    self.connection.storeFile(share_name, file_path, f.read())
+                    self.connection.storeFile(share_name, file_path, f)
                 logger.info(f"SMB upload completed: {local_path} -> {remote_path}")
                 return True
             else:
-                logger.info(f"SMB upload (placeholder): {local_path} -> {remote_path}")
-                return True
+                logger.error("SMB upload failed: SMB library not available or connection not established.")
+                return False
         except Exception as e:
             logger.error(f"SMB upload failed: {e}")
             return False
-    
+
     def download_file(self, remote_path: str, local_path: str) -> bool:
         """Download a file via SMB."""
         try:
@@ -119,17 +116,13 @@ class SMBConnection:
                     # Assume default share and path
                     share_name = "C$"
                     file_path = remote_path.lstrip('/')
-                
                 with open(local_path, 'wb') as f:
-                    f.write(self.connection.retrieveFile(share_name, file_path))
+                    self.connection.retrieveFile(share_name, file_path, f)
                 logger.info(f"SMB download completed: {remote_path} -> {local_path}")
                 return True
             else:
-                # Create placeholder file for testing
-                with open(local_path, 'wb') as f:
-                    f.write(b"smb_downloaded_content")
-                logger.info(f"SMB download (placeholder): {remote_path} -> {local_path}")
-                return True
+                logger.error("SMB download failed: SMB library not available or connection not established.")
+                return False
         except Exception as e:
             logger.error(f"SMB download failed: {e}")
             return False
@@ -142,8 +135,8 @@ class SMBConnection:
                 self.connection.listShares()
                 return True
             else:
-                # Placeholder for actual health check
-                return True
+                logger.error("smbprotocol not available or connection not established: cannot perform health check.")
+                return False
         except Exception as e:
             logger.error(f"SMB health check failed: {e}")
             return False
@@ -210,14 +203,33 @@ class SMBConnector(BaseConnector):
         return self.smb_connection.health_check()
     
     def exec_command(self, command: str) -> tuple:
-        """Execute a command via SMB (placeholder)."""
+        """Execute a command via SMB using WMI or PowerShell."""
         if not self.smb_connection:
             raise Exception("SMB connection not established.")
         logger.info(f"Executing command via SMB: {command}")
-        # Placeholder for actual command execution
-        result = f"Simulated SMB output for: {command}"
-        logger.info(f"Result: {result}")
-        return result, ""
+        
+        try:
+            # Try to use WMI for command execution
+            if SMB_AVAILABLE:
+                from impacket.dcerpc.v5 import wmi
+                from impacket.dcerpc.v5.dtypes import NULL
+                
+                # Create WMI connection
+                dce = self.smb_connection.get_dce_rpc()
+                dce.connect()
+                dce.bind(wmi.MSRPC_UUID_WMI)
+                
+                # Execute command via WMI
+                wmi_conn = wmi.WMI(dce)
+                result = wmi_conn.exec_query(f"SELECT * FROM Win32_Process WHERE Name='cmd.exe' AND CommandLine='{command}'")
+                
+                return str(result), ""
+            else:
+                logger.error("Impacket not available: cannot execute command via SMB. Install impacket for full functionality.")
+                return "", "Impacket not available: install impacket for SMB command execution."
+        except Exception as e:
+            logger.error(f"SMB command execution failed: {e}")
+            return "", str(e)
     
     def is_alive(self) -> bool:
         """Check if the SMB connection is still alive and functional."""
