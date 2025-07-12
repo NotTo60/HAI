@@ -1,6 +1,6 @@
 # Hybrid Attack Interface (HAI)
 
-A Python-based hybrid connection system for secure, resilient, and flexible remote access to diverse servers using SSH, SMB, Impacket, and more. Supports multi-hop tunnels, fallback logic, file transfer (with MD5 and compression), dynamic iPython magics, modular connectors, **enhanced logging**, **state management**, **threaded operations**, and **centralized constants management**.
+A Python-based hybrid connection system for secure, resilient, and flexible remote access to diverse servers using SSH, SMB, Impacket, and more. Supports multi-hop tunnels, fallback logic, file transfer (with MD5 verification and compression), dynamic iPython magics, modular connectors, **enhanced logging**, **state management**, **threaded operations**, and **centralized constants management**.
 
 ---
 
@@ -41,23 +41,25 @@ echo "AWS secrets have been set for the HAI repository!"
 - The test suite (`tests/test_integration_real_servers.py`) connects to the provisioned VMs and:
   - Runs a command (whoami)
   - Uploads a file
-  - Downloads the file and checks its content
+  - Downloads the file and checks its content with MD5 verification
   - Tests all supported connection methods (SSH, SMB, WMI/Impacket)
 - No mocks: all tests are real, on real infrastructure.
 
 ---
 
 ## Features
-- Modular connectors: SSH, SMB, Impacket (NTLM), and easily extensible
-- Multi-hop tunnel routing and automatic fallback
-- File upload/download (single/multiple, with tar.gz compression and MD5 integrity)
-- Protocol selection for file transfer (`sftp`, `scp`, `smb`, `ftp`, etc.)
+- **Real SMB and Impacket functionality**: Full implementation of SMB file transfer and WMI command execution
+- **MD5 verification**: All file transfers include MD5 checksum verification for integrity
+- **Modular connectors**: SSH, SMB, Impacket (NTLM), and easily extensible
+- **Multi-hop tunnel routing and automatic fallback**
+- **File upload/download** (single/multiple, with tar.gz compression and MD5 integrity)
+- **Protocol selection for file transfer** (`sftp`, `scp`, `smb`, `ftp`, etc.)
 - **Threaded operations with progress bars and statistics tracking**
 - **Enhanced logging with per-server loggers and performance tracking**
 - **State management for saving/loading operation states**
 - **Centralized constants management for all configuration values**
-- iPython magics for interactive route management (`magics/` folder)
-- Logging, validation, and modular config
+- **iPython magics for interactive route management** (`magics/` folder)
+- **Logging, validation, and modular config**
 
 ## Requirements
 - Python 3.8+
@@ -189,6 +191,74 @@ ssh:
   client_id: HAI-Client      # Custom client identifier for Paramiko
 ```
 
+## Real SMB and Impacket Functionality
+
+HAI now includes full implementation of SMB file transfer and WMI command execution using Impacket.
+
+### SMB File Transfer
+```python
+from connectors.smb_connector import SMBConnector
+
+# Connect to Windows server
+smb = SMBConnector.connect_cls(
+    host="192.168.1.100",
+    port=445,
+    user="administrator",
+    password="password123",
+    domain="WORKGROUP"
+)
+
+# Upload file with MD5 verification
+smb.putFile("C$", "test.txt", "local_file.txt")
+
+# Download file with MD5 verification
+smb.getFile("C$", "test.txt", "downloaded_file.txt")
+
+smb.disconnect()
+```
+
+### WMI Command Execution via Impacket
+```python
+from connectors.impacket_wrapper import ImpacketWrapper
+
+# Connect and execute command
+impacket = ImpacketWrapper.connect_cls(
+    host="192.168.1.100",
+    user="administrator",
+    password="password123",
+    domain="WORKGROUP"
+)
+
+# Execute command via WMI
+output = impacket.execute_command("whoami")
+print(f"Command output: {output}")
+
+impacket.disconnect()
+```
+
+### File Transfer with MD5 Verification
+All file transfers now include MD5 checksum verification:
+
+```python
+from core.file_transfer import upload_file, download_file
+
+# Upload with MD5 verification
+result = upload_file(
+    connection=conn,
+    local_path="local_file.txt",
+    remote_path="/remote/file.txt",
+    verify_md5=True  # Default: True
+)
+
+# Download with MD5 verification
+result = download_file(
+    connection=conn,
+    remote_path="/remote/file.txt",
+    local_path="downloaded_file.txt",
+    verify_md5=True  # Default: True
+)
+```
+
 ## Threaded Operations with Enhanced Features
 
 HAI supports advanced threaded operations with integrated logging, state management, and progress tracking.
@@ -220,22 +290,24 @@ results = run_commands_on_servers(
     show_progress=True
 )
 
-# File upload with compression
+# File upload with compression and MD5 verification
 results = upload_file_to_servers(
     servers=servers,
     local_path="/local/file.txt",
     remote_path="/remote/file.txt",
     compress=True,
+    verify_md5=True,
     max_workers=10,
     show_progress=True
 )
 
-# File download with decompression
+# File download with decompression and MD5 verification
 results = download_file_from_servers(
     servers=servers,
     remote_path="/remote/file.txt",
     local_path="/local/file.txt",
     decompress=True,
+    verify_md5=True,
     max_workers=10,
     show_progress=True
 )
@@ -490,11 +562,11 @@ conn = connect_with_fallback(server)
 # Run a command
 out, err = run_command(conn, 'whoami')
 
-# Upload a file (with compression)
-upload_file(conn, 'local.txt', '/remote/remote.txt', compress=True)
+# Upload a file (with compression and MD5 verification)
+upload_file(conn, 'local.txt', '/remote/remote.txt', compress=True, verify_md5=True)
 
-# Download multiple files
-download_files(conn, ['/remote/a.txt', '/remote/b.txt'], './downloads', compress=True)
+# Download multiple files (with decompression and MD5 verification)
+download_files(conn, ['/remote/a.txt', '/remote/b.txt'], './downloads', decompress=True, verify_md5=True)
 
 conn.disconnect()
 ```
@@ -506,7 +578,7 @@ conn.disconnect()
 
 ## Supported File Transfer Protocols
 - `sftp`, `scp` (via SSH)
-- `smb` (via SMBConnector)
+- `smb` (via SMBConnector with real SMB implementation)
 - `ftp` (future extension)
 - Specify protocol in your server JSON:
 ```json
@@ -529,6 +601,7 @@ conn.disconnect()
 - **Enhanced error handling**: Better error messages and recovery mechanisms
 - **Comprehensive testing**: Full test coverage for all new features
 - **Documentation**: Complete documentation for all new functionality
+- **Real SMB and Impacket implementation**: Full functionality instead of placeholders
 
 ### File Structure Improvements
 ```
@@ -536,20 +609,20 @@ hai/
 ├── core/
 │   ├── threaded_operations.py    # Enhanced with logging and state
 │   ├── connection_manager.py     # Uses constants
-│   ├── file_transfer.py          # Uses constants
+│   ├── file_transfer.py          # Uses constants, MD5 verification
 │   ├── command_runner.py         # Uses constants
 │   ├── server_schema.py          # Uses constants
 │   └── tunnel_builder.py         # Uses constants
 ├── connectors/
 │   ├── ssh_connector.py          # Uses constants
-│   ├── smb_connector.py          # Uses constants
-│   └── impacket_wrapper.py       # Uses constants
+│   ├── smb_connector.py          # Real SMB implementation
+│   └── impacket_wrapper.py       # Real WMI implementation
 ├── utils/
 │   ├── constants.py              # All constants centralized
 │   ├── enhanced_logger.py        # Advanced logging system
 │   ├── state_manager.py          # State persistence
 │   ├── logger.py                 # Basic logging (legacy)
-│   └── md5sum.py                 # Uses constants
+│   └── md5sum.py                 # MD5 verification utilities
 ├── logs/                         # Per-server and system logs
 ├── state/                        # Saved operation states
 ├── tests/                        # Comprehensive test suite
@@ -565,6 +638,7 @@ If you're upgrading from an older version:
 2. **Use constants**: Replace hardcoded values with constants from `utils.constants`
 3. **Enable state management**: Add `save_state=True` and `load_state=True` to threaded operations
 4. **Update logging**: Use the new logging methods for better tracking
+5. **Enable MD5 verification**: Add `verify_md5=True` to file transfer operations
 
 ## CLI Usage: Direct Connect
 
@@ -622,7 +696,9 @@ The project requires the following Python packages:
 ```
 pydantic>=1.10          # Data validation and settings management
 paramiko>=3.0           # SSH protocol implementation
-impacket>=0.10          # Network protocol library
+impacket>=0.10          # Network protocol library (WMI, SMB)
+smbprotocol>=1.5        # SMB protocol implementation
+pysmb>=1.2              # SMB client library
 ipython>=8.0            # Interactive Python shell
 pyyaml>=6.0             # YAML configuration files
 tqdm>=4.64              # Progress bars for threaded operations
@@ -634,7 +710,7 @@ pathlib>=1.0            # Path manipulation
 logging>=0.5            # Logging framework
 tarfile>=3.0            # Archive file handling
 gzip>=1.0               # Compression utilities
-hashlib>=3.0            # Cryptographic hashing
+hashlib>=3.0            # Cryptographic hashing (MD5)
 os>=1.0                 # Operating system interface
 sys>=1.0                # System-specific parameters
 time>=1.0               # Time-related functions

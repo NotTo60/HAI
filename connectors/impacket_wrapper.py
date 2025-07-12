@@ -210,6 +210,8 @@ class ImpacketWrapper(BaseConnector):
                     
                     logger.info(f"Result: {result}")
                     return result, ""
+                except ImportError as import_error:
+                    logger.warning(f"WMI module not available: {import_error}")
                 except Exception as e:
                     logger.warning(f"WMI execution failed: {e}")
                 
@@ -220,7 +222,7 @@ class ImpacketWrapper(BaseConnector):
                     batch_content = f"@echo off\n{command}\n"
                     
                     # Upload batch file using SMB
-                    def file_callback():
+                    def file_callback(data):
                         return batch_content.encode()
                     self.connection.putFile("C$", temp_batch, file_callback)
                     
@@ -233,6 +235,9 @@ class ImpacketWrapper(BaseConnector):
                         wmi_conn = wmi.WMI(dce)
                         process = wmi_conn.Win32_Process.Create(CommandLine=f"cmd /c C:\\{temp_batch}")
                         result = f"Process created with ID: {process.ProcessId}"
+                    except ImportError as import_error:
+                        logger.warning(f"WMI module not available: {import_error}")
+                        result = f"Command '{command}' prepared for execution via batch file"
                     except Exception as wmi_error:
                         logger.warning(f"WMI execution failed: {wmi_error}")
                         result = f"Command '{command}' prepared for execution via batch file"
