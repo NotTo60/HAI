@@ -73,9 +73,10 @@ class SMBConnector(BaseConnector):
     """SMB connector for Windows file operations."""
     
     def __init__(self, host: str, user: str, password: str = None, 
-                 domain: str = "", timeout: int = DEFAULT_TIMEOUT):
+                 domain: str = "", timeout: int = DEFAULT_TIMEOUT, client_id: str = None):
         super().__init__(host, user, password, timeout)
         self.domain = domain
+        self.client_id = client_id
         self.smb_connection = None
     
     def connect(self) -> bool:

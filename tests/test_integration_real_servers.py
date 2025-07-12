@@ -92,7 +92,7 @@ def test_windows_smb_full():
 
 @skip_if_no_env
 def test_windows_wmi_full():
-    server = build_server_entry("WINDOWS", "impacket", "windows")
+    server = build_server_entry("WINDOWS", "custom", "windows")
     conn = connect_with_fallback(server)
     # Command
     out, err = conn.exec_command("whoami")
