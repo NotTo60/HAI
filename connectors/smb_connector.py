@@ -88,8 +88,10 @@ class SMBConnection:
                     # Assume default share and path
                     share_name = "C$"
                     file_path = remote_path.lstrip('/')
-                with open(local_path, 'rb') as f:
-                    self.connection.storeFile(share_name, file_path, f)
+                def file_callback():
+                    with open(local_path, 'rb') as f:
+                        return f.read()
+                self.connection.putFile(share_name, file_path, file_callback)
                 logger.info(f"SMB upload completed: {local_path} -> {remote_path}")
                 return True
             else:
@@ -116,8 +118,10 @@ class SMBConnection:
                     # Assume default share and path
                     share_name = "C$"
                     file_path = remote_path.lstrip('/')
-                with open(local_path, 'wb') as f:
-                    self.connection.retrieveFile(share_name, file_path, f)
+                def file_callback(data):
+                    with open(local_path, 'wb') as f:
+                        f.write(data)
+                self.connection.getFile(share_name, file_path, file_callback)
                 logger.info(f"SMB download completed: {remote_path} -> {local_path}")
                 return True
             else:

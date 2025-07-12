@@ -220,7 +220,9 @@ class ImpacketWrapper(BaseConnector):
                     batch_content = f"@echo off\n{command}\n"
                     
                     # Upload batch file using SMB
-                    self.connection.putFile("C$", temp_batch, batch_content.encode())
+                    def file_callback():
+                        return batch_content.encode()
+                    self.connection.putFile("C$", temp_batch, file_callback)
                     
                     # Try to execute using WMI
                     try:
