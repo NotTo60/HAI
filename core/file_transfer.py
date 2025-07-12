@@ -2,6 +2,8 @@ import os
 import shutil
 import tarfile
 import tempfile
+import subprocess
+import shlex
 
 from utils.logger import get_logger
 from utils.md5sum import md5sum
@@ -12,7 +14,54 @@ from utils.constants import (
 logger = get_logger("file_transfer")
 
 
-def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION):
+def _scp_transfer(conn, local_path, remote_path, upload=True):
+    """Execute SCP transfer using subprocess."""
+    try:
+        # Build the SCP command
+        if upload:
+            # Upload: scp local_path user@host:remote_path
+            scp_cmd = f"scp {local_path} {conn.user}@{conn.host}:{remote_path}"
+            logger.info(f"Executing SCP upload: {scp_cmd}")
+        else:
+            # Download: scp user@host:remote_path local_path
+            scp_cmd = f"scp {conn.user}@{conn.host}:{remote_path} {local_path}"
+            logger.info(f"Executing SCP download: {scp_cmd}")
+        
+        # Set up SSH key authentication if available
+        env = os.environ.copy()
+        if hasattr(conn, 'ssh_key') and conn.ssh_key:
+            env['SSH_KEY_FILE'] = conn.ssh_key
+            # Add SSH key to ssh-agent or use -i flag
+            if upload:
+                scp_cmd = f"scp -i {conn.ssh_key} {local_path} {conn.user}@{conn.host}:{remote_path}"
+            else:
+                scp_cmd = f"scp -i {conn.ssh_key} {conn.user}@{conn.host}:{remote_path} {local_path}"
+        
+        # Execute SCP command
+        result = subprocess.run(
+            shlex.split(scp_cmd),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=conn.timeout if hasattr(conn, 'timeout') else 30
+        )
+        
+        if result.returncode == 0:
+            logger.info(f"SCP transfer successful: {result.stdout}")
+            return True
+        else:
+            logger.error(f"SCP transfer failed: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logger.error("SCP transfer timed out")
+        return False
+    except Exception as e:
+        logger.error(f"SCP transfer error: {e}")
+        return False
+
+
+def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use_scp=False):
     """Upload a file to a remote server."""
     path_to_send = local_path
     if compress:
@@ -31,11 +80,21 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION):
     try:
         # Check connection type and implement appropriate upload method
         if hasattr(conn, 'client') and conn.client:  # SSH connection
-            # Use SFTP for SSH connections
-            sftp = conn.client.open_sftp()
-            sftp.put(path_to_send, remote_path)
-            sftp.close()
-            logger.info(f"File upload completed via SFTP: {path_to_send} -> {remote_path}")
+            if use_scp:
+                # Use SCP for SSH connections
+                logger.info(f"Uploading via SCP: {path_to_send} -> {remote_path}")
+                success = _scp_transfer(conn, path_to_send, remote_path, upload=True)
+                if success:
+                    logger.info(f"File upload completed via SCP: {path_to_send} -> {remote_path}")
+                else:
+                    raise Exception("SCP upload failed")
+            else:
+                # Use SFTP for SSH connections
+                logger.info(f"Uploading via SFTP: {path_to_send} -> {remote_path}")
+                sftp = conn.client.open_sftp()
+                sftp.put(path_to_send, remote_path)
+                sftp.close()
+                logger.info(f"File upload completed via SFTP: {path_to_send} -> {remote_path}")
             
         elif hasattr(conn, 'smb_connection') and conn.smb_connection:  # SMB connection
             # Use SMB for Windows connections
@@ -70,18 +129,28 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION):
         return False
 
 
-def download_file(conn, remote_path, local_path, decompress=DEFAULT_COMPRESSION):
+def download_file(conn, remote_path, local_path, decompress=DEFAULT_COMPRESSION, use_scp=False):
     """Download a file from a remote server."""
     logger.info(f"Downloading {remote_path} to {local_path}")
     
     try:
         # Check connection type and implement appropriate download method
         if hasattr(conn, 'client') and conn.client:  # SSH connection
-            # Use SFTP for SSH connections
-            sftp = conn.client.open_sftp()
-            sftp.get(remote_path, local_path)
-            sftp.close()
-            logger.info(f"File download completed via SFTP: {remote_path} -> {local_path}")
+            if use_scp:
+                # Use SCP for SSH connections
+                logger.info(f"Downloading via SCP: {remote_path} -> {local_path}")
+                success = _scp_transfer(conn, local_path, remote_path, upload=False)
+                if success:
+                    logger.info(f"File download completed via SCP: {remote_path} -> {local_path}")
+                else:
+                    raise Exception("SCP download failed")
+            else:
+                # Use SFTP for SSH connections
+                logger.info(f"Downloading via SFTP: {remote_path} -> {local_path}")
+                sftp = conn.client.open_sftp()
+                sftp.get(remote_path, local_path)
+                sftp.close()
+                logger.info(f"File download completed via SFTP: {remote_path} -> {local_path}")
             
         elif hasattr(conn, 'smb_connection') and conn.smb_connection:  # SMB connection
             # Use SMB for Windows connections

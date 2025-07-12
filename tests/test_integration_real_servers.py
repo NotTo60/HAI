@@ -49,7 +49,7 @@ skip_if_no_env = pytest.mark.skipif(
     reason="Real server credentials not set in environment"
 )
 
-def _test_file_transfer(conn, tmp_content=b"test123", remote_name="hai_test_file.txt"):
+def _test_file_transfer(conn, tmp_content=b"test123", remote_name="hai_test_file.txt", use_scp=False):
     # Create a temp file to upload
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp.write(tmp_content)
@@ -57,10 +57,10 @@ def _test_file_transfer(conn, tmp_content=b"test123", remote_name="hai_test_file
         local_path = tmp.name
     remote_path = f"/tmp/{remote_name}"
     # Upload
-    assert upload_file(conn, local_path, remote_path, compress=False)
+    assert upload_file(conn, local_path, remote_path, compress=False, use_scp=use_scp)
     # Download to a new temp file
     download_path = local_path + ".downloaded"
-    assert download_file(conn, remote_path, download_path, decompress=False)
+    assert download_file(conn, remote_path, download_path, decompress=False, use_scp=use_scp)
     # Check content
     with open(download_path, "rb") as f:
         assert f.read() == tmp_content
@@ -74,8 +74,19 @@ def test_linux_ssh_full():
     # Command
     out, err = conn.exec_command("whoami")
     assert server.user in out
-    # File transfer
+    # File transfer (SFTP)
     _test_file_transfer(conn)
+    conn.disconnect()
+
+@skip_if_no_env
+def test_linux_ssh_scp():
+    server = build_server_entry("LINUX", "ssh", "linux")
+    conn = connect_with_fallback(server)
+    # Command
+    out, err = conn.exec_command("whoami")
+    assert server.user in out
+    # File transfer (SCP)
+    _test_file_transfer(conn, use_scp=True)
     conn.disconnect()
 
 @skip_if_no_env
