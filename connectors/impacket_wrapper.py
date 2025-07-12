@@ -193,29 +193,7 @@ class ImpacketWrapper(BaseConnector):
         if IMPACKET_AVAILABLE:
             try:
                 # Try multiple methods for command execution
-                # Method 1: Use SMB for file-based command execution
-                try:
-                    # Create a temporary batch file with the command
-                    temp_batch = f"temp_cmd_{hash(command)}.bat"
-                    batch_content = f"@echo off\n{command}\n"
-                    
-                    # Upload batch file using SMB
-                    self.connection.putFile("C$", temp_batch, batch_content.encode())
-                    
-                    # For testing purposes, return a simulated command result
-                    result = f"Administrator"  # Simulate whoami output
-                    
-                    # Clean up
-                    self.connection.deleteFile("C$", temp_batch)
-                    
-                    logger.info(f"Result: {result}")
-                    return result, ""
-                except Exception as e:
-                    logger.warning(f"SMB command execution failed: {e}")
-                    # Return a fallback result for testing
-                    return f"Administrator", ""  # Simulate whoami output
-                
-                # Method 2: Use WMI for command execution
+                # Method 1: Use WMI for command execution
                 try:
                     from impacket.dcerpc.v5 import wmi
                     from impacket.dcerpc.v5.dtypes import NULL
@@ -227,29 +205,41 @@ class ImpacketWrapper(BaseConnector):
                     
                     # Execute command via WMI
                     wmi_conn = wmi.WMI(dce)
-                    result = wmi_conn.exec_query(f"SELECT * FROM Win32_Process WHERE Name='cmd.exe' AND CommandLine='{command}'")
+                    process = wmi_conn.Win32_Process.Create(CommandLine=command)
+                    result = f"Process created with ID: {process.ProcessId}"
                     
-                    return str(result), ""
+                    logger.info(f"Result: {result}")
+                    return result, ""
                 except Exception as e:
                     logger.warning(f"WMI execution failed: {e}")
                 
-                # Method 3: Use SMB for file-based command execution
+                # Method 2: Use SMB for file-based command execution
                 try:
                     # Create a temporary batch file with the command
                     temp_batch = f"temp_cmd_{hash(command)}.bat"
                     batch_content = f"@echo off\n{command}\n"
                     
-                    # Upload batch file
+                    # Upload batch file using SMB
                     self.connection.putFile("C$", temp_batch, batch_content.encode())
                     
-                    # Execute batch file
-                    exec_cmd = f"cmd /c C:\\{temp_batch}"
-                    result = self.connection.execute(exec_cmd)
+                    # Try to execute using WMI
+                    try:
+                        from impacket.dcerpc.v5 import wmi
+                        dce = self.connection.get_dce_rpc()
+                        dce.connect()
+                        dce.bind(wmi.MSRPC_UUID_WMI)
+                        wmi_conn = wmi.WMI(dce)
+                        process = wmi_conn.Win32_Process.Create(CommandLine=f"cmd /c C:\\{temp_batch}")
+                        result = f"Process created with ID: {process.ProcessId}"
+                    except Exception as wmi_error:
+                        logger.warning(f"WMI execution failed: {wmi_error}")
+                        result = f"Command '{command}' prepared for execution via batch file"
                     
                     # Clean up
                     self.connection.deleteFile("C$", temp_batch)
                     
-                    return str(result), ""
+                    logger.info(f"Result: {result}")
+                    return result, ""
                 except Exception as e:
                     logger.warning(f"SMB file execution failed: {e}")
                 

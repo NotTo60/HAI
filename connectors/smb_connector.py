@@ -52,9 +52,8 @@ class SMBConnection:
                 logger.info(f"Available shares: {[share.name for share in shares]}")
                 return True
             else:
-                logger.warning("smbprotocol not available: using placeholder SMB functionality for testing")
-                # For testing purposes, return True to allow tests to continue
-                return True
+                logger.error("smbprotocol not available: cannot establish real SMB connection. Install smbprotocol for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"Failed to connect to SMB on {self.host}: {e}")
             return False
@@ -94,9 +93,8 @@ class SMBConnection:
                 logger.info(f"SMB upload completed: {local_path} -> {remote_path}")
                 return True
             else:
-                logger.warning("SMB library not available: using placeholder upload for testing")
-                # For testing purposes, simulate successful upload
-                return True
+                logger.error("SMB library not available: cannot perform real upload. Install smbprotocol for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"SMB upload failed: {e}")
             return False
@@ -123,9 +121,8 @@ class SMBConnection:
                 logger.info(f"SMB download completed: {remote_path} -> {local_path}")
                 return True
             else:
-                logger.warning("SMB library not available: using placeholder download for testing")
-                # For testing purposes, simulate successful download
-                return True
+                logger.error("SMB library not available: cannot perform real download. Install smbprotocol for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"SMB download failed: {e}")
             return False
@@ -138,9 +135,8 @@ class SMBConnection:
                 self.connection.listShares()
                 return True
             else:
-                logger.warning("smbprotocol not available: using placeholder health check for testing")
-                # For testing purposes, return True to allow tests to continue
-                return True
+                logger.error("smbprotocol not available: cannot perform real health check. Install smbprotocol for full functionality.")
+                return False
         except Exception as e:
             logger.error(f"SMB health check failed: {e}")
             return False
