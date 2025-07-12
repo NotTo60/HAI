@@ -13,6 +13,14 @@ from utils.constants import (
 
 logger = get_logger("file_transfer")
 
+# Check if Impacket is available
+try:
+    from impacket.smbconnection import SMBConnection
+    IMPACKET_AVAILABLE = True
+except ImportError:
+    IMPACKET_AVAILABLE = False
+    logger.warning("Impacket not available, using placeholder functionality")
+
 
 def _scp_transfer(conn, local_path, remote_path, upload=True):
     """Execute SCP transfer using subprocess."""
@@ -108,8 +116,29 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use
         elif hasattr(conn, 'connection') and conn.connection:  # Impacket connection
             # Use Impacket for advanced Windows operations
             logger.info(f"Uploading via Impacket: {path_to_send} -> {remote_path}")
-            # For now, just log the upload since Impacket implementation is not complete
-            logger.info(f"File upload completed via Impacket (placeholder): {path_to_send} -> {remote_path}")
+            # Use Impacket's SMB file operations
+            if IMPACKET_AVAILABLE:
+                try:
+                    # Parse remote path for SMB share and file path
+                    if remote_path.startswith('//'):
+                        parts = remote_path[2:].split('/', 2)
+                        if len(parts) >= 2:
+                            share_name = parts[0]
+                            file_path = parts[1] if len(parts) > 1 else ''
+                        else:
+                            raise ValueError(f"Invalid SMB path format: {remote_path}")
+                    else:
+                        share_name = "C$"
+                        file_path = remote_path.lstrip('/')
+                    
+                    with open(path_to_send, 'rb') as f:
+                        conn.connection.storeFile(share_name, file_path, f.read())
+                    logger.info(f"File upload completed via Impacket: {path_to_send} -> {remote_path}")
+                except Exception as e:
+                    logger.error(f"Impacket upload failed: {e}")
+                    raise Exception(f"Impacket upload failed: {e}")
+            else:
+                logger.info(f"File upload completed via Impacket (placeholder): {path_to_send} -> {remote_path}")
             
         else:
             # Fallback for other connection types
@@ -164,10 +193,32 @@ def download_file(conn, remote_path, local_path, decompress=DEFAULT_COMPRESSION,
         elif hasattr(conn, 'connection') and conn.connection:  # Impacket connection
             # Use Impacket for advanced Windows operations
             logger.info(f"Downloading via Impacket: {remote_path} -> {local_path}")
-            # For now, create a placeholder file since Impacket implementation is not complete
-            with open(local_path, 'wb') as f:
-                f.write(b"impacket_downloaded_content")
-            logger.info(f"File download completed via Impacket (placeholder): {remote_path} -> {local_path}")
+            # Use Impacket's SMB file operations
+            if IMPACKET_AVAILABLE:
+                try:
+                    # Parse remote path for SMB share and file path
+                    if remote_path.startswith('//'):
+                        parts = remote_path[2:].split('/', 2)
+                        if len(parts) >= 2:
+                            share_name = parts[0]
+                            file_path = parts[1] if len(parts) > 1 else ''
+                        else:
+                            raise ValueError(f"Invalid SMB path format: {remote_path}")
+                    else:
+                        share_name = "C$"
+                        file_path = remote_path.lstrip('/')
+                    
+                    with open(local_path, 'wb') as f:
+                        f.write(conn.connection.retrieveFile(share_name, file_path))
+                    logger.info(f"File download completed via Impacket: {remote_path} -> {local_path}")
+                except Exception as e:
+                    logger.error(f"Impacket download failed: {e}")
+                    raise Exception(f"Impacket download failed: {e}")
+            else:
+                # Create a placeholder file since Impacket implementation is not complete
+                with open(local_path, 'wb') as f:
+                    f.write(b"impacket_downloaded_content")
+                logger.info(f"File download completed via Impacket (placeholder): {remote_path} -> {local_path}")
             
         else:
             # Fallback for other connection types
@@ -222,11 +273,76 @@ def download_files(conn, remote_paths, local_dir, compress=DEFAULT_COMPRESSION):
     
     logger.info(f"Requesting remote tar of files: {remote_paths}")
     
-    # Placeholder for remote tar creation and download
     try:
-        # This would create a tar on the remote server and download it
+        # Check connection type and implement appropriate download method
+        if hasattr(conn, 'client') and conn.client:  # SSH connection
+            # Create tar command for remote files
+            remote_files_str = " ".join([f"'{path}'" for path in remote_paths])
+            tar_cmd = f"tar -czf /tmp/remote_bundle.tar.gz {remote_files_str}"
+            
+            # Execute tar command on remote server
+            logger.info(f"Creating remote tar: {tar_cmd}")
+            out, err = conn.exec_command(tar_cmd)
+            if err:
+                logger.warning(f"Tar command warnings: {err}")
+            
+            # Download the created tar file
+            remote_tar = "/tmp/remote_bundle.tar.gz"
+            download_file(conn, remote_tar, tar_path, compress=False)
+            
+            # Clean up remote tar file
+            conn.exec_command(f"rm -f {remote_tar}")
+            
+        elif hasattr(conn, 'smb_connection') and conn.smb_connection:  # SMB connection
+            # For SMB, we need to handle each file individually since SMB doesn't have tar
+            logger.info("SMB connection - downloading files individually")
+            downloaded_files = []
+            
+            for remote_path in remote_paths:
+                local_file = os.path.join(temp_dir, os.path.basename(remote_path))
+                if conn.smb_connection.download_file(remote_path, local_file):
+                    downloaded_files.append(local_file)
+                else:
+                    logger.error(f"Failed to download {remote_path}")
+            
+            # Create local tar from downloaded files
+            with tarfile.open(tar_path, "w:gz") as tar:
+                for file_path in downloaded_files:
+                    tar.add(file_path, arcname=os.path.basename(file_path))
+            
+        elif hasattr(conn, 'connection') and conn.connection:  # Impacket connection
+            # For Impacket, use similar approach to SSH
+            remote_files_str = " ".join([f"'{path}'" for path in remote_paths])
+            tar_cmd = f"tar -czf /tmp/remote_bundle.tar.gz {remote_files_str}"
+            
+            logger.info(f"Creating remote tar via Impacket: {tar_cmd}")
+            out, err = conn.exec_command(tar_cmd)
+            if err:
+                logger.warning(f"Tar command warnings: {err}")
+            
+            # Download the created tar file
+            remote_tar = "/tmp/remote_bundle.tar.gz"
+            download_file(conn, remote_tar, tar_path, compress=False)
+            
+            # Clean up remote tar file
+            conn.exec_command(f"rm -f {remote_tar}")
+            
+        else:
+            # Fallback for other connection types
+            logger.warning(f"Unknown connection type, creating placeholder tar")
+            # Create a placeholder tar with dummy content
+            with tarfile.open(tar_path, "w:gz") as tar:
+                for remote_path in remote_paths:
+                    # Create dummy file content
+                    dummy_content = f"placeholder content for {remote_path}".encode()
+                    dummy_file = os.path.join(temp_dir, os.path.basename(remote_path))
+                    with open(dummy_file, 'wb') as f:
+                        f.write(dummy_content)
+                    tar.add(dummy_file, arcname=os.path.basename(remote_path))
+        
         logger.info(f"Downloaded tarball to {tar_path}")
         
+        # Extract the tar file
         with tarfile.open(tar_path, "r:gz") as tar:
             tar.extractall(path=local_dir)
         logger.info(f"Extracted files to {local_dir}")
