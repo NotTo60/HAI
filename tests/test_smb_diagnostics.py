@@ -40,7 +40,7 @@ def check_port_connectivity(host, port, timeout=5):
     except Exception:
         return False
 
-def test_smb_connectivity(host, username=None, password=None):
+def check_smb_connectivity(host, username=None, password=None):
     """Test SMB connectivity using smbclient."""
     print(f"\n=== Testing SMB Connectivity to {host} ===")
     
@@ -112,7 +112,7 @@ def generate_smb_test_report(host, username=None, password=None):
         return False
     
     # Test connectivity
-    success = test_smb_connectivity(host, username, password)
+    success = check_smb_connectivity(host, username, password)
     
     # Generate recommendations
     print("\n=== RECOMMENDATIONS ===")
