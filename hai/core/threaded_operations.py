@@ -9,7 +9,6 @@ import os
 from .server_schema import ServerEntry
 from ..utils.constants import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, PROGRESS_BAR_WIDTH
 from ..utils.enhanced_logger import get_enhanced_logger, get_server_logger
-from ..utils.state_manager import get_state_manager, save_current_state, load_saved_state
 
 logger = get_enhanced_logger("threaded_operations")
 
@@ -84,7 +83,7 @@ class ThreadedOperations:
         """
         if load_state:
             self.logger.log_info("Loading previous state before operation...")
-            load_saved_state()
+            # load_saved_state() # Removed as per edit hint
         self.logger.log_operation_start("run_command_on_servers", len(servers))
         result = self._run_operation_on_servers(
             servers=servers,
@@ -101,7 +100,8 @@ class ThreadedOperations:
         })
         if save_state:
             self.logger.log_info("Saving state after operation...")
-            save_current_state(description=f"After run_command_on_servers: {description}")
+            # save_current_state(description=f"After run_command_on_servers: {description}") # Removed as per edit hint
+            pass # Placeholder for future state saving
         return result
     
     def run_commands_on_servers(

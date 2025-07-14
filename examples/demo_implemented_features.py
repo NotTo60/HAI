@@ -24,7 +24,6 @@ from core.threaded_operations import (
     download_file_from_servers
 )
 from utils.enhanced_logger import get_enhanced_logger, log_performance
-from utils.state_manager import get_state_manager, save_current_state
 
 def create_demo_servers():
     """Create demo server configurations."""
@@ -228,44 +227,6 @@ def demo_basic_operations():
     except Exception as e:
         print(f"File download failed: {e}")
 
-def demo_state_management():
-    """Demonstrate state management features."""
-    print("\n" + "="*60)
-    print("DEMO: State Management")
-    print("="*60)
-    
-    state_manager = get_state_manager()
-    
-    # Create a new state
-    print("\n1. Creating new system state...")
-    state = state_manager.create_new_state("Demo state for HAI features")
-    print(f"Created state with ID: {state.metadata.created_at}")
-    
-    # Update operation state
-    print("\n2. Updating operation state...")
-    state_manager.update_operation_state(
-        operation_id="demo_op_001",
-        operation_type="command_execution",
-        servers=["demo-ssh", "demo-smb"],
-        successful=["demo-ssh"],
-        failed=["demo-smb"],
-        status="completed"
-    )
-    print("Operation state updated")
-    
-    # Save state
-    print("\n3. Saving state...")
-    save_current_state("Demo state saved successfully")
-    print("State saved")
-    
-    # Load state
-    print("\n4. Loading state...")
-    try:
-        loaded_state = state_manager.load_state("hai_state")
-        print(f"Loaded state with {len(loaded_state)} entries")
-    except Exception as e:
-        print(f"State loading failed: {e}")
-
 def demo_enhanced_logging():
     """Demonstrate enhanced logging features."""
     print("\n" + "="*60)
@@ -356,7 +317,6 @@ def main():
     
     # Run all demos
     demo_basic_operations()
-    demo_state_management()
     demo_enhanced_logging()
     demo_error_handling()
     

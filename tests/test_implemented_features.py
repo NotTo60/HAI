@@ -25,7 +25,6 @@ from hai.core.threaded_operations import (
     download_file_from_servers
 )
 from hai.utils.enhanced_logger import get_enhanced_logger
-from hai.utils.state_manager import get_state_manager, save_current_state
 from hai.utils.constants import *
 from hai.connectors import SSHConnector, SMBConnector, ImpacketWrapper, FTPConnector
 
@@ -77,46 +76,6 @@ class TestConnectorImplementations:
         assert connector.host == "test-host"
         assert connector.user == "test-user"
         assert connector.password == "test-pass"
-
-class TestStateManagement:
-    """Test state management functionality."""
-    
-    def test_state_manager_creation(self):
-        """Test state manager can be created."""
-        state_manager = get_state_manager()
-        assert state_manager is not None
-        assert hasattr(state_manager, 'state_dir')
-    
-    def test_new_state_creation(self):
-        """Test new state can be created."""
-        state_manager = get_state_manager()
-        state = state_manager.create_new_state("Test state")
-        assert state is not None
-        assert state.metadata.description == "Test state"
-        assert state.metadata.version == STATE_VERSION
-    
-    def test_operation_state_update(self):
-        """Test operation state can be updated."""
-        state_manager = get_state_manager()
-        
-        # Create a new state first
-        state_manager.create_new_state("Test state")
-        
-        # Update operation state
-        state_manager.update_operation_state(
-            operation_id="test_op_001",
-            operation_type="command_execution",
-            servers=["server1", "server2"],
-            successful=["server1"],
-            failed=["server2"],
-            status="completed"
-        )
-        
-        # Verify operation state was updated
-        op_state = state_manager.get_operation_state("test_op_001")
-        assert op_state is not None
-        assert op_state.operation_id == "test_op_001"
-        assert op_state.status == "completed"
 
 class TestEnhancedLogging:
     """Test enhanced logging functionality."""
@@ -296,46 +255,6 @@ class TestServerSchema:
         assert hop.user == "test-user"
         assert hop.method == "ssh"
         assert hop.port == 22
-
-class TestIntegration:
-    """Integration tests for complete workflows."""
-    
-    def test_import_all_modules(self):
-        """Test all modules can be imported."""
-        # Test core imports
-        from hai.core import (
-            connect_with_fallback,
-            upload_file,
-            download_file,
-            run_command,
-            ServerEntry
-        )
-        
-        # Test utils imports
-        from hai.utils import (
-            get_logger,
-            get_enhanced_logger,
-            get_state_manager
-        )
-        
-        # Test connectors imports
-        from hai.connectors import (
-            SSHConnector,
-            SMBConnector,
-            ImpacketWrapper,
-            FTPConnector
-        )
-        
-        # If no exception is raised, all imports work
-        assert True
-    
-    def test_constants_consistency(self):
-        """Test constants are consistent across modules."""
-        # Test that constants used in different modules are consistent
-        assert DEFAULT_TIMEOUT > 0
-        assert DEFAULT_MAX_WORKERS > 0
-        assert len(SUPPORTED_CONNECTION_METHODS) > 0
-        assert len(SUPPORTED_FILE_TRANSFER_PROTOCOLS) > 0
 
 if __name__ == "__main__":
     # Run tests

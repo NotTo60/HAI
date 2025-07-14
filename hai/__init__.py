@@ -57,8 +57,7 @@ from .core.threaded_operations import (
 
 from .utils import (
     get_logger,
-    get_enhanced_logger,
-    get_state_manager
+    get_enhanced_logger
 )
 
 __all__ = [
@@ -81,7 +80,6 @@ __all__ = [
     # Utilities
     'get_logger',
     'get_enhanced_logger',
-    'get_state_manager',
     
     # Version info
     '__version__',

@@ -492,50 +492,6 @@ logs/
 └── performance.log            # Performance metrics
 ```
 
-## State Management
-
-HAI provides robust state management for saving and loading operation states, allowing you to resume work from where you left off.
-
-### Features
-- **Automatic state saving**: Save state after operations with custom descriptions
-- **State loading**: Resume operations from saved states
-- **Backup management**: Automatic backup of state files
-- **State validation**: Verify state integrity before loading
-- **Cross-machine compatibility**: Load states on different machines
-
-### Usage
-
-```python
-from utils.state_manager import save_current_state, load_saved_state, get_state_manager
-
-# Save current state
-save_current_state(description="After successful command execution")
-
-# Load saved state
-loaded_state = load_saved_state()
-
-# Use with threaded operations
-from core.threaded_operations import ThreadedOperations
-
-ops = ThreadedOperations()
-results = ops.run_command_on_servers(
-    servers=servers,
-    command="whoami",
-    save_state=True,  # Save state after operation
-    load_state=True   # Load state before operation
-)
-```
-
-### State Structure
-```
-state/
-├── hai_state_2024-01-01_12-00-00.json  # Timestamped state files
-├── hai_state_2024-01-01_12-30-00.json
-└── backups/                             # Automatic backups
-    ├── hai_state_2024-01-01_12-00-00.json.backup
-    └── hai_state_2024-01-01_12-30-00.json.backup
-```
-
 ## Constants Management
 
 All hardcoded values throughout the codebase have been replaced with centralized constants for better maintainability and consistency.
@@ -662,7 +618,6 @@ hai/
 ├── utils/
 │   ├── constants.py              # All constants centralized
 │   ├── enhanced_logger.py        # Advanced logging system
-│   ├── state_manager.py          # State persistence
 │   ├── logger.py                 # Basic logging (legacy)
 │   └── md5sum.py                 # MD5 verification utilities
 ├── logs/                         # Per-server and system logs
