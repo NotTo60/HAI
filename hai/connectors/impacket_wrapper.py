@@ -1,13 +1,18 @@
 """
-Impacket wrapper for advanced Windows operations.
+Impacket Wrapper for HAI
 
-This module provides a wrapper around Impacket library for advanced
-Windows operations like SMB, WMI, and remote command execution.
+This module provides Impacket-based connectivity functionality for the HAI project.
 """
 
-from typing import Optional, Dict, Any
-from .base_connector import BaseConnector
+import impacket
+from impacket.smbconnection import SMBConnection
+from impacket.dcerpc.v5 import rrp, scmr
+from impacket.dcerpc.v5.dtypes import NULL
+from impacket.dcerpc.v5.rpcrt import DCERPCException
+from impacket.dcerpc.v5 import transport
 from ..utils.logger import get_logger
+from .base_connector import BaseConnector
+from typing import Optional, Dict, Any
 from ..utils.constants import DEFAULT_TIMEOUT
 
 logger = get_logger("impacket_wrapper")

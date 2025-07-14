@@ -1,40 +1,48 @@
-from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel
-from ..utils.constants import (
-    SUPPORTED_CONNECTION_METHODS, SUPPORTED_FILE_TRANSFER_PROTOCOLS, SUPPORTED_OS_TYPES, SERVER_GRADES
-)
+"""
+Server Schema Module for HAI
+
+This module defines the data structures for server configuration and management.
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any, Literal
 
 
-class TunnelHop(BaseModel):
+@dataclass
+class TunnelHop:
     ip: str
     user: str
-    method: Literal["ssh", "smb", "custom", "ftp", "impacket"]
+    password: Optional[str] = None
+    ssh_key: Optional[str] = None
     port: Optional[int] = None
+    os: Optional[str] = None
     tool: Optional[str] = None
+    method: Optional[str] = None
+    config: Optional[Dict[str, Any]] = None
 
 
-class TunnelRoute(BaseModel):
+@dataclass
+class TunnelRoute:
     name: str
     active: bool = True
-    hops: List[TunnelHop]
+    hops: List[TunnelHop] = field(default_factory=list)
 
 
-class ServerEntry(BaseModel):
+@dataclass
+class ServerEntry:
     hostname: str
     ip: str
-    dns: str
-    location: str
-    user: str
-    password: Optional[str]
-    ssh_key: Optional[str]
-    connection_method: Literal["ssh", "smb", "custom", "ftp", "impacket"]
-    port: int
-    active: bool
-    grade: Literal["critical", "must-win", "important", "nice-to-have", "low-priority"]
-    tool: Optional[str]
-    os: Literal["linux", "windows", "unknown"]
-    tunnel_routes: List[TunnelRoute]
-    file_transfer_protocol: Optional[
-        Literal["sftp", "scp", "smb", "ftp"]
-    ] = "sftp"
+    dns: Optional[str] = None
+    location: Optional[str] = None
+    user: str = ""
+    password: Optional[str] = None
+    ssh_key: Optional[str] = None
+    connection_method: Literal["ssh", "smb", "custom", "ftp", "impacket"] = "ssh"
+    port: int = 22
+    active: bool = True
+    grade: Literal["critical", "must-win", "important", "nice-to-have", "low-priority"] = "important"
+    tool: Optional[str] = None
+    os: Literal["linux", "windows", "unknown"] = "unknown"
+    tunnel_routes: List[TunnelRoute] = field(default_factory=list)
+    file_transfer_protocol: Optional[Literal["sftp", "scp", "smb", "ftp"]] = "sftp"
     config: Optional[Dict[str, Any]] = None

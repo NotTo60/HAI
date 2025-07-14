@@ -1,16 +1,23 @@
+"""
+Threaded Operations Module for HAI
+
+This module provides threaded execution capabilities for parallel operations.
+"""
+
+import concurrent.futures
 import threading
 import time
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional
+from typing import List, Dict, Any, Optional, Callable
 from tqdm import tqdm
-import os
-
-from .server_schema import ServerEntry
+from ..utils.logger import get_logger
 from ..utils.constants import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, PROGRESS_BAR_WIDTH
 from ..utils.enhanced_logger import get_enhanced_logger, get_server_logger
+from .server_schema import ServerEntry
 
-logger = get_enhanced_logger("threaded_operations")
+logger = get_logger("threaded_operations")
 
 
 @dataclass
@@ -54,7 +61,7 @@ class ThreadedOperations:
     
     def __init__(self, max_workers: int = DEFAULT_MAX_WORKERS):
         self.max_workers = max_workers
-        self.logger = get_enhanced_logger("threaded_operations")
+        self.logger = get_logger("threaded_operations")
     
     def run_command_on_servers(
         self, 
@@ -244,7 +251,6 @@ class ThreadedOperations:
         description: str = "Running operation"
     ) -> BatchResult:
         """Internal method to run operations on servers with threading"""
-        import time
         start_time = time.time()
         
         successful_results = []
@@ -313,9 +319,6 @@ class ThreadedOperations:
     
     def _command_operation(self, server: ServerEntry, command: str, timeout: int) -> OperationResult:
         """Execute a single command on a server"""
-        import time
-        from .connection_manager import connect_with_fallback
-        from .command_runner import run_command
         start_time = time.time()
         server_logger = get_server_logger(server.hostname, server.ip)
         try:
@@ -343,10 +346,6 @@ class ThreadedOperations:
     
     def _commands_operation(self, server: ServerEntry, commands: List[str], timeout: int) -> OperationResult:
         """Execute multiple commands on a server"""
-        import time
-        from .connection_manager import connect_with_fallback
-        from .command_runner import run_commands
-        
         start_time = time.time()
         
         try:
@@ -375,9 +374,6 @@ class ThreadedOperations:
     
     def _upload_operation(self, server: ServerEntry, local_path: str, remote_path: str, compress: bool, timeout: int) -> OperationResult:
         """Upload a file to a server"""
-        import time
-        from .connection_manager import connect_with_fallback
-        from .file_transfer import upload_file
         start_time = time.time()
         server_logger = get_server_logger(server.hostname, server.ip)
         try:
@@ -426,9 +422,6 @@ class ThreadedOperations:
     
     def _download_operation(self, server: ServerEntry, remote_path: str, local_path: str, decompress: bool, timeout: int) -> OperationResult:
         """Download a file from a server"""
-        import time
-        from .connection_manager import connect_with_fallback
-        from .file_transfer import download_file
         start_time = time.time()
         server_logger = get_server_logger(server.hostname, server.ip)
         try:
@@ -477,9 +470,6 @@ class ThreadedOperations:
     
     def _custom_operation(self, server: ServerEntry, operation_func: Callable, operation_args: tuple, operation_kwargs: dict, timeout: int) -> OperationResult:
         """Execute a custom operation on a server"""
-        import time
-        from .connection_manager import connect_with_fallback
-        
         start_time = time.time()
         
         try:

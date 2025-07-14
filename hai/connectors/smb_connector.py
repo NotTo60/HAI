@@ -1,14 +1,13 @@
 """
-SMB connector for Windows file operations.
+SMB Connector for HAI
 
-This module provides SMB connectivity for Windows systems,
-enabling file operations and share access.
+This module provides SMB connectivity functionality for the HAI project.
 """
 
-from typing import Optional, Dict, Any, List
-from .base_connector import BaseConnector
+import smbclient
+from typing import List
 from ..utils.logger import get_logger
-from ..utils.constants import DEFAULT_TIMEOUT
+from .base_connector import BaseConnector
 
 logger = get_logger("smb_connector")
 
@@ -24,7 +23,7 @@ class SMBConnection:
     """SMB connection wrapper."""
     
     def __init__(self, host: str, user: str, password: str = None, 
-                 domain: str = "", timeout: int = DEFAULT_TIMEOUT):
+                 domain: str = "", timeout: int = 30):
         self.host = host
         self.user = user
         self.password = password
@@ -152,7 +151,7 @@ class SMBConnection:
             self.connection = None
 
 
-def connect_cls(cls, host, user, password=None, domain="", lmhash="", nthash="", aesKey="", doKerberos=False, kdcHost=None, timeout=DEFAULT_TIMEOUT, client_id=None, **kwargs):
+def connect_cls(cls, host, user, password=None, domain="", lmhash="", nthash="", aesKey="", doKerberos=False, kdcHost=None, timeout=30, client_id=None, **kwargs):
     """Connect using SMB class."""
     connection = SMBConnection(host, user, password, domain, timeout)
     if connection.connect():
@@ -164,7 +163,7 @@ class SMBConnector(BaseConnector):
     """SMB connector for Windows file operations."""
     
     def __init__(self, host: str, user: str, password: str = None, 
-                 domain: str = "", timeout: int = DEFAULT_TIMEOUT, client_id: str = None):
+                 domain: str = "", timeout: int = 30, client_id: str = None):
         self.host = host
         self.user = user
         self.password = password

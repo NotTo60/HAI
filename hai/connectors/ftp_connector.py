@@ -1,14 +1,14 @@
 """
-FTP connector for file operations.
+FTP Connector for HAI
 
-This module provides FTP connectivity for file operations,
-enabling upload, download, and directory listing.
+This module provides FTP connectivity functionality for the HAI project.
 """
 
-from typing import Optional, Dict, Any, List
-from .base_connector import BaseConnector
+import ftplib
+import os
+from typing import List
 from ..utils.logger import get_logger
-from ..utils.constants import DEFAULT_TIMEOUT
+from .base_connector import BaseConnector
 
 logger = get_logger("ftp_connector")
 
@@ -24,7 +24,7 @@ class FTPConnection:
     """FTP connection wrapper."""
     
     def __init__(self, host: str, user: str, password: str = None, 
-                 timeout: int = DEFAULT_TIMEOUT):
+                 timeout: int = 30):
         self.host = host
         self.user = user
         self.password = password
@@ -120,7 +120,7 @@ class FTPConnector(BaseConnector):
     """FTP connector for file operations."""
     
     def __init__(self, host: str, user: str, password: str = None, 
-                 timeout: int = DEFAULT_TIMEOUT, client_id: str = None):
+                 timeout: int = 30, client_id: str = None):
         self.host = host
         self.user = user
         self.password = password
@@ -200,7 +200,7 @@ class FTPConnector(BaseConnector):
         return self.health_check()
     
     @classmethod
-    def connect_cls(cls, host, user, password=None, timeout=DEFAULT_TIMEOUT, client_id=None, **kwargs):
+    def connect_cls(cls, host, user, password=None, timeout=30, client_id=None, **kwargs):
         """Connect using FTP class."""
         instance = cls(host, user, password, timeout, client_id, **kwargs)
         if instance.connect():

@@ -1,15 +1,29 @@
+"""
+File Transfer Module for HAI
+
+This module provides file transfer functionality across different protocols.
+"""
+
 import os
 import shutil
 import tarfile
 import tempfile
 import subprocess
 import shlex
-
+import hashlib
+import gzip
+import bz2
+import lzma
+from typing import Optional, Dict, Any, List
 from ..utils.logger import get_logger
-from ..utils.md5sum import md5sum
 from ..utils.constants import (
-    DEFAULT_COMPRESSION, SUPPORTED_COMPRESSION_FORMATS
+    SUPPORTED_COMPRESSION_FORMATS,
+    DEFAULT_CHUNK_SIZE,
+    MAX_FILE_SIZE,
+    DEFAULT_COMPRESSION
 )
+from ..utils.md5sum import md5sum
+from .server_schema import ServerEntry
 
 logger = get_logger("file_transfer")
 
@@ -94,7 +108,6 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use
         logger.info(f"Compressed {local_path} to {tar_path}")
         path_to_send = tar_path
     
-    from utils.md5sum import md5sum
     local_md5 = md5sum(path_to_send)
     logger.info(f"Uploading {path_to_send} to {remote_path} (MD5: {local_md5})")
     
@@ -188,7 +201,6 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use
         
         # Perform MD5 verification
         try:
-            from ..utils.md5sum import md5sum
             local_md5 = md5sum(path_to_send)
             logger.info(f"Local file MD5: {local_md5}")
             
