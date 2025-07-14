@@ -71,9 +71,30 @@ fi
 
 echo "Testing SMB connectivity with smbclient..."
 
+# Print environment and system info
+echo "[DEBUG] ENVIRONMENT VARIABLES:"
+env | grep -E 'USER|DOMAIN|PWD|HOME'
+echo "[DEBUG] Hostname: $(hostname)"
+echo "[DEBUG] Current directory: $(pwd)"
+echo "[DEBUG] Date: $(date -Iseconds)"
+echo "[DEBUG] Resolved IP for $TARGET_IP: $(getent hosts $TARGET_IP 2>/dev/null | awk '{print $1}')"
+echo "[DEBUG] smbclient version: $(smbclient -V 2>&1)"
+
+# Try different SMB protocol versions
+echo "[DEBUG] Testing SMB protocol versions..."
+for proto in NT1 SMB2 SMB3; do
+  echo "[DEBUG] Trying protocol: $proto"
+  smbclient -L //$TARGET_IP/ -U "" -N --option="client min protocol=$proto" -d 3 2>&1 | tee /tmp/smb_proto_${proto}.txt
+  if grep -q "Sharename" /tmp/smb_proto_${proto}.txt; then
+    echo "[DEBUG] Protocol $proto supported."
+  else
+    echo "[DEBUG] Protocol $proto not supported or failed."
+  fi
+done
+
 # Try to list shares anonymously
 echo "[DEBUG] Attempting anonymous SMB enumeration..."
-echo_and_run "Anonymous enumeration" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"\" -N 2>&1 > /tmp/smb_anonymous.txt"
+echo_and_run "Anonymous enumeration" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"\" -N -d 3 2>&1 > /tmp/smb_anonymous.txt"
 if grep -q "TestShare\|C\$" /tmp/smb_anonymous.txt; then
     echo ""
     echo "=== FINAL RESULT ==="
@@ -90,7 +111,7 @@ else
     echo ""
     # Try with guest access
     echo "[DEBUG] Attempting guest SMB enumeration..."
-    echo_and_run "Guest enumeration" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"guest\" -N 2>&1 > /tmp/smb_guest.txt"
+    echo_and_run "Guest enumeration" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"guest\" -N -d 3 2>&1 > /tmp/smb_guest.txt"
     if grep -q "TestShare\|C\$" /tmp/smb_guest.txt; then
         echo ""
         echo "=== FINAL RESULT ==="
@@ -107,7 +128,7 @@ else
         echo ""
         # Try with Administrator credentials (if we have them)
         echo "[DEBUG] Attempting Administrator SMB enumeration..."
-        echo_and_run "Administrator enumeration (no password)" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"Administrator\" -W . -N 2>&1 > /tmp/smb_admin.txt"
+        echo_and_run "Administrator enumeration (no password)" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"Administrator\" -W . -N -d 3 2>&1 > /tmp/smb_admin.txt"
         if grep -q "TestShare\|C\$" /tmp/smb_admin.txt; then
             echo ""
             echo "=== FINAL RESULT ==="
@@ -133,7 +154,7 @@ else
                 pwlen=${#CLEAN_PASSWORD}
                 echo "  Password: $CLEAN_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
                 echo "  Domain: (default/empty)"
-                echo_and_run "Administrator enumeration (with password)" "timeout 20s bash -c 'printf \"%s\" \"$0\" | smbclient -L //${TARGET_IP}/ -U \"Administrator\" -W . 2>&1' \"$CLEAN_PASSWORD\" > /tmp/smb_admin_auth.txt"
+                echo_and_run "Administrator enumeration (with password)" "timeout 20s bash -c 'printf \"%s\" \"$0\" | smbclient -L //${TARGET_IP}/ -U \"Administrator\" -W . -d 3 2>&1' \"$CLEAN_PASSWORD\" > /tmp/smb_admin_auth.txt"
                 # Always print output, even if timeout or error
                 echo "[DEBUG] smbclient output (admin with password):"
                 cat /tmp/smb_admin_auth.txt
@@ -173,3 +194,14 @@ else
         fi
     fi
 fi 
+
+# At the end, print a summary and suggestions if all fail
+echo "[DEBUG] SMB diagnostics complete."
+echo "[DEBUG] Suggestions:"
+echo "- Check Windows Firewall rules for SMB (port 445)"
+echo "- Ensure the Administrator account is enabled and password is correct"
+echo "- Check Windows Event Viewer for failed logon attempts"
+echo "- Try with a different password or user if possible"
+echo "- Ensure SMBv1/v2/v3 is enabled on the server"
+echo "- If using a domain, try DOMAIN\\Administrator as the user"
+echo "- If password has special characters, ensure proper quoting/escaping" 

@@ -13,6 +13,8 @@ import time
 import argparse
 from typing import Dict, List, Tuple, Optional
 import json
+import platform
+import os
 
 class SMBDiagnostics:
     def __init__(self, target_ip: str, username: str = None, password: str = None):
@@ -20,6 +22,24 @@ class SMBDiagnostics:
         self.username = username
         self.password = password
         self.results = {}
+        # Print environment and system info
+        print(f"[DEBUG] ENVIRONMENT VARIABLES:")
+        for k in ['USER', 'DOMAIN', 'PWD', 'HOME']:
+            print(f"  {k}={os.environ.get(k)}")
+        print(f"[DEBUG] Hostname: {platform.node()}")
+        print(f"[DEBUG] Current directory: {os.getcwd()}")
+        print(f"[DEBUG] Date: {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
+        try:
+            resolved_ip = socket.gethostbyname(self.target_ip)
+            print(f"[DEBUG] Resolved IP for {self.target_ip}: {resolved_ip}")
+        except Exception as e:
+            print(f"[DEBUG] Could not resolve IP: {e}")
+        try:
+            import subprocess
+            ver = subprocess.run(['smbclient', '-V'], capture_output=True, text=True)
+            print(f"[DEBUG] smbclient version: {ver.stdout.strip()}")
+        except Exception as e:
+            print(f"[DEBUG] Could not get smbclient version: {e}")
         
     def test_port_connectivity(self) -> bool:
         """Test if port 445 is reachable."""
@@ -45,7 +65,7 @@ class SMBDiagnostics:
     
     def test_smb_versions(self) -> Dict[str, bool]:
         """Test SMB version compatibility."""
-        print("\n🔄 Testing SMB version compatibility...")
+        print("\n"); print("[DEBUG] Testing SMB protocol versions...")
         versions = {
             'SMB1': '--option=client min protocol=NT1',
             'SMB2': '--option=client min protocol=SMB2', 
@@ -54,18 +74,20 @@ class SMBDiagnostics:
         
         results = {}
         for version, option in versions.items():
-            print(f"  Testing {version}...")
+            print(f"  [DEBUG] Trying protocol: {version}")
             try:
-                cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', '', '-N', option]
+                cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', '', '-N', option, '-d', '3']
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
+                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
                 if result.returncode == 0:
-                    print(f"    ✅ {version} is supported")
+                    print(f"    \u2705 {version} is supported")
                     results[version] = True
                 else:
-                    print(f"    ❌ {version} not supported")
+                    print(f"    \u274c {version} not supported")
                     results[version] = False
             except Exception as e:
-                print(f"    ❌ {version} test failed: {e}")
+                print(f"    \u274c {version} test failed: {e}")
                 results[version] = False
         
         self.results['smb_versions'] = results
@@ -73,7 +95,7 @@ class SMBDiagnostics:
     
     def test_authentication_methods(self) -> Dict[str, bool]:
         """Test different authentication methods."""
-        print("\n🔐 Testing authentication methods...")
+        print("\n[DEBUG] Testing authentication methods...")
         
         methods = [
             ('anonymous', '', ''),
@@ -86,23 +108,24 @@ class SMBDiagnostics:
         
         results = {}
         for method_name, user, password in methods:
-            print(f"  Testing {method_name}...")
+            print(f"  [DEBUG] Testing {method_name}...")
             try:
                 if password:
-                    cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', user, '-p', password]
+                    cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', user, '-p', password, '-d', '3']
                 else:
-                    cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', user, '-N']
+                    cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', user, '-N', '-d', '3']
                 
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
+                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
                 if result.returncode == 0 and 'Sharename' in result.stdout:
-                    print(f"    ✅ {method_name} successful")
+                    print(f"    \u2705 {method_name} successful")
                     results[method_name] = True
                 else:
-                    print(f"    ❌ {method_name} failed")
-                    print(f"      Error: {result.stderr.strip()}")
+                    print(f"    \u274c {method_name} failed")
                     results[method_name] = False
             except Exception as e:
-                print(f"    ❌ {method_name} test failed: {e}")
+                print(f"    \u274c {method_name} test failed: {e}")
                 results[method_name] = False
         
         self.results['authentication'] = results
@@ -110,31 +133,32 @@ class SMBDiagnostics:
     
     def test_common_shares(self) -> Dict[str, bool]:
         """Test access to common Windows shares."""
-        print("\n📁 Testing common share access...")
+        print("\n[DEBUG] Testing common share access...")
         
         common_shares = ['C$', 'ADMIN$', 'IPC$', 'TestShare', 'Share', 'Public']
         results = {}
         
         for share in common_shares:
-            print(f"  Testing share: {share}")
+            print(f"  [DEBUG] Testing share: {share}")
             try:
                 if self.username and self.password:
-                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', self.username, '-p', self.password, '-c', 'ls']
+                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', self.username, '-p', self.password, '-c', 'ls', '-d', '3']
                 elif self.username:
-                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', self.username, '-N', '-c', 'ls']
+                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', self.username, '-N', '-c', 'ls', '-d', '3']
                 else:
-                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', '', '-N', '-c', 'ls']
+                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', '', '-N', '-c', 'ls', '-d', '3']
                 
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
+                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
                 if result.returncode == 0:
-                    print(f"    ✅ {share} is accessible")
+                    print(f"    \u2705 {share} is accessible")
                     results[share] = True
                 else:
-                    print(f"    ❌ {share} not accessible")
-                    print(f"      Error: {result.stderr.strip()}")
+                    print(f"    \u274c {share} not accessible")
                     results[share] = False
             except Exception as e:
-                print(f"    ❌ {share} test failed: {e}")
+                print(f"    \u274c {share} test failed: {e}")
                 results[share] = False
         
         self.results['shares'] = results
@@ -142,7 +166,7 @@ class SMBDiagnostics:
     
     def test_network_connectivity(self) -> Dict[str, bool]:
         """Test basic network connectivity."""
-        print("\n🌐 Testing network connectivity...")
+        print("\n[DEBUG] Testing network connectivity...")
         
         tests = {
             'ping': f'ping -c 1 {self.target_ip}',
@@ -152,17 +176,19 @@ class SMBDiagnostics:
         
         results = {}
         for test_name, command in tests.items():
-            print(f"  Testing {test_name}...")
+            print(f"  [DEBUG] Testing {test_name}...")
             try:
                 result = subprocess.run(command.split(), capture_output=True, text=True, timeout=15)
+                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
+                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
                 if result.returncode == 0:
-                    print(f"    ✅ {test_name} successful")
+                    print(f"    \u2705 {test_name} successful")
                     results[test_name] = True
                 else:
-                    print(f"    ❌ {test_name} failed")
+                    print(f"    \u274c {test_name} failed")
                     results[test_name] = False
             except Exception as e:
-                print(f"    ❌ {test_name} test failed: {e}")
+                print(f"    \u274c {test_name} test failed: {e}")
                 results[test_name] = False
         
         self.results['network'] = results
@@ -196,7 +222,7 @@ class SMBDiagnostics:
     
     def run_full_diagnostics(self) -> Dict:
         """Run all diagnostic tests."""
-        print(f"🚀 Starting SMB diagnostics for {self.target_ip}")
+        print(f"\n[DEBUG] Starting SMB diagnostics for {self.target_ip}")
         print("=" * 50)
         
         # Run all tests
@@ -207,28 +233,27 @@ class SMBDiagnostics:
         self.test_common_shares()
         
         # Generate recommendations
-        # recommendations = self.generate_recommendations()
+        recommendations = self.generate_recommendations()
         
         # Print summary
         print("\n" + "=" * 50)
-        print("📊 DIAGNOSTIC SUMMARY")
+        print("\ud83d\udcca DIAGNOSTIC SUMMARY")
         print("=" * 50)
         
         for category, results in self.results.items():
             print(f"\n{category.upper()}:")
             if isinstance(results, dict):
                 for key, value in results.items():
-                    status = "✅" if value else "❌"
+                    status = "\u2705" if value else "\u274c"
                     print(f"  {status} {key}")
             else:
-                status = "✅" if results else "❌"
+                status = "\u2705" if results else "\u274c"
                 print(f"  {status} {category}")
         
-        # Remove recommendations output for production
-        # if recommendations:
-        #     print(f"\n💡 RECOMMENDATIONS:")
-        #     for i, rec in enumerate(recommendations, 1):
-        #         print(f"  {i}. {rec}")
+        if recommendations:
+            print(f"\n\ud83d\udca1 RECOMMENDATIONS:")
+            for i, rec in enumerate(recommendations, 1):
+                print(f"  {i}. {rec}")
         
         # Save results to file
         output_file = f"smb_diagnostics_{self.target_ip}_{int(time.time())}.json"
@@ -236,11 +261,11 @@ class SMBDiagnostics:
             json.dump({
                 'target_ip': self.target_ip,
                 'timestamp': time.time(),
-                'results': self.results
-                # 'recommendations': recommendations
+                'results': self.results,
+                'recommendations': recommendations
             }, f, indent=2)
         
-        print(f"\n📄 Detailed results saved to: {output_file}")
+        print(f"\n\ud83d\udcc4 Detailed results saved to: {output_file}")
         
         return self.results
 
