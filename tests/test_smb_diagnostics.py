@@ -1,288 +1,160 @@
 #!/usr/bin/env python3
 """
-SMB Connectivity Diagnostics Tool
+SMB Configuration Validation and Diagnostics Script
 
-This script performs comprehensive SMB connectivity testing to identify
-specific issues based on the root cause analysis.
+This script validates Windows SMB share configurations and provides
+comprehensive diagnostics for troubleshooting SMB connectivity issues.
 """
 
-import socket
 import subprocess
 import sys
-import time
-import argparse
-from typing import Dict, List, Tuple, Optional
-import json
-import platform
 import os
+import socket
+import time
+from pathlib import Path
 
-class SMBDiagnostics:
-    def __init__(self, target_ip: str, username: str = None, password: str = None):
-        self.target_ip = target_ip
-        self.username = username
-        self.password = password
-        self.results = {}
-        # Print environment and system info
-        print(f"[DEBUG] ENVIRONMENT VARIABLES:")
-        for k in ['USER', 'DOMAIN', 'PWD', 'HOME']:
-            print(f"  {k}={os.environ.get(k)}")
-        print(f"[DEBUG] Hostname: {platform.node()}")
-        print(f"[DEBUG] Current directory: {os.getcwd()}")
-        print(f"[DEBUG] Date: {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
-        try:
-            resolved_ip = socket.gethostbyname(self.target_ip)
-            print(f"[DEBUG] Resolved IP for {self.target_ip}: {resolved_ip}")
-        except Exception as e:
-            print(f"[DEBUG] Could not resolve IP: {e}")
-        try:
-            import subprocess
-            ver = subprocess.run(['smbclient', '-V'], capture_output=True, text=True)
-            print(f"[DEBUG] smbclient version: {ver.stdout.strip()}")
-        except Exception as e:
-            print(f"[DEBUG] Could not get smbclient version: {e}")
-        
-    def test_port_connectivity(self) -> bool:
-        """Test if port 445 is reachable."""
-        print("🔍 Testing port 445 connectivity...")
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
-            result = sock.connect_ex((self.target_ip, 445))
-            sock.close()
-            
-            if result == 0:
-                print("✅ Port 445 is reachable")
-                self.results['port_445'] = True
-                return True
-            else:
-                print("❌ Port 445 is not reachable")
-                self.results['port_445'] = False
-                return False
-        except Exception as e:
-            print(f"❌ Port 445 test failed: {e}")
-            self.results['port_445'] = False
-            return False
+def run_command(cmd, timeout=30):
+    """Run a command and return the result."""
+    try:
+        result = subprocess.run(
+            cmd, 
+            shell=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=timeout
+        )
+        return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return -1, "", f"Command timed out after {timeout} seconds"
+    except Exception as e:
+        return -1, "", str(e)
+
+def check_port_connectivity(host, port, timeout=5):
+    """Check if a port is reachable."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+def test_smb_connectivity(host, username=None, password=None):
+    """Test SMB connectivity using smbclient."""
+    print(f"\n=== Testing SMB Connectivity to {host} ===")
     
-    def test_smb_versions(self) -> Dict[str, bool]:
-        """Test SMB version compatibility."""
-        print("\n"); print("[DEBUG] Testing SMB protocol versions...")
-        versions = {
-            'SMB1': '--option=client min protocol=NT1',
-            'SMB2': '--option=client min protocol=SMB2', 
-            'SMB3': '--option=client min protocol=SMB3'
-        }
-        
-        results = {}
-        for version, option in versions.items():
-            print(f"  [DEBUG] Trying protocol: {version}")
-            try:
-                cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', '', '-N', option, '-d', '3']
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
-                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
-                if result.returncode == 0:
-                    print(f"    \u2705 {version} is supported")
-                    results[version] = True
-                else:
-                    print(f"    \u274c {version} not supported")
-                    results[version] = False
-            except Exception as e:
-                print(f"    \u274c {version} test failed: {e}")
-                results[version] = False
-        
-        self.results['smb_versions'] = results
-        return results
+    # Check port 445
+    print(f"1. Checking port 445 connectivity...")
+    if check_port_connectivity(host, 445):
+        print("   ✅ Port 445 is reachable")
+    else:
+        print("   ❌ Port 445 is not reachable")
+        return False
     
-    def test_authentication_methods(self) -> Dict[str, bool]:
-        """Test different authentication methods."""
-        print("\n[DEBUG] Testing authentication methods...")
-        
-        methods = [
-            ('anonymous', '', ''),
-            ('guest', 'guest', ''),
-            ('null_session', '', ''),
-        ]
-        
-        if self.username:
-            methods.append(('provided_credentials', self.username, self.password or ''))
-        
-        results = {}
-        for method_name, user, password in methods:
-            print(f"  [DEBUG] Testing {method_name}...")
-            try:
-                if password:
-                    cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', user, '-p', password, '-d', '3']
-                else:
-                    cmd = ['smbclient', '-L', f'//{self.target_ip}', '-U', user, '-N', '-d', '3']
-                
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
-                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
-                if result.returncode == 0 and 'Sharename' in result.stdout:
-                    print(f"    \u2705 {method_name} successful")
-                    results[method_name] = True
-                else:
-                    print(f"    \u274c {method_name} failed")
-                    results[method_name] = False
-            except Exception as e:
-                print(f"    \u274c {method_name} test failed: {e}")
-                results[method_name] = False
-        
-        self.results['authentication'] = results
-        return results
+    # Test anonymous access
+    print(f"2. Testing anonymous SMB enumeration...")
+    cmd = f"smbclient -L //{host}/ -U \"\" -N -d 0"
+    rc, stdout, stderr = run_command(cmd)
     
-    def test_common_shares(self) -> Dict[str, bool]:
-        """Test access to common Windows shares."""
-        print("\n[DEBUG] Testing common share access...")
-        
-        common_shares = ['C$', 'ADMIN$', 'IPC$', 'TestShare', 'Share', 'Public']
-        results = {}
-        
-        for share in common_shares:
-            print(f"  [DEBUG] Testing share: {share}")
-            try:
-                if self.username and self.password:
-                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', self.username, '-p', self.password, '-c', 'ls', '-d', '3']
-                elif self.username:
-                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', self.username, '-N', '-c', 'ls', '-d', '3']
-                else:
-                    cmd = ['smbclient', f'//{self.target_ip}/{share}', '-U', '', '-N', '-c', 'ls', '-d', '3']
-                
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
-                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
-                if result.returncode == 0:
-                    print(f"    \u2705 {share} is accessible")
-                    results[share] = True
-                else:
-                    print(f"    \u274c {share} not accessible")
-                    results[share] = False
-            except Exception as e:
-                print(f"    \u274c {share} test failed: {e}")
-                results[share] = False
-        
-        self.results['shares'] = results
-        return results
+    if rc == 0 and ("TestShare" in stdout or "C$" in stdout):
+        print("   ✅ Anonymous access successful")
+        print(f"   Shares found: {stdout}")
+        return True
+    else:
+        print("   ❌ Anonymous access failed")
+        print(f"   Error: {stderr}")
     
-    def test_network_connectivity(self) -> Dict[str, bool]:
-        """Test basic network connectivity."""
-        print("\n[DEBUG] Testing network connectivity...")
+    # Test with credentials if provided
+    if username and password:
+        print(f"3. Testing authenticated access as {username}...")
+        cmd = f"smbclient -L //{host}/ -U \"{username}%{password}\" -d 0"
+        rc, stdout, stderr = run_command(cmd)
         
-        tests = {
-            'ping': f'ping -c 1 {self.target_ip}',
-            'traceroute': f'traceroute {self.target_ip}',
-            'telnet_445': f'telnet {self.target_ip} 445'
-        }
-        
-        results = {}
-        for test_name, command in tests.items():
-            print(f"  [DEBUG] Testing {test_name}...")
-            try:
-                result = subprocess.run(command.split(), capture_output=True, text=True, timeout=15)
-                print(f"    [DEBUG] stdout: {result.stdout.strip()}")
-                print(f"    [DEBUG] stderr: {result.stderr.strip()}")
-                if result.returncode == 0:
-                    print(f"    \u2705 {test_name} successful")
-                    results[test_name] = True
-                else:
-                    print(f"    \u274c {test_name} failed")
-                    results[test_name] = False
-            except Exception as e:
-                print(f"    \u274c {test_name} test failed: {e}")
-                results[test_name] = False
-        
-        self.results['network'] = results
-        return results
+        if rc == 0 and ("TestShare" in stdout or "C$" in stdout):
+            print("   ✅ Authenticated access successful")
+            print(f"   Shares found: {stdout}")
+            return True
+        else:
+            print("   ❌ Authenticated access failed")
+            print(f"   Error: {stderr}")
     
-    def generate_recommendations(self) -> List[str]:
-        """Generate specific recommendations based on test results."""
-        recommendations = []
-        
-        if not self.results.get('port_445', False):
-            recommendations.append("🔒 Port 445 is blocked - Check Windows Firewall inbound rules for 'File and Printer Sharing (SMB-In)'")
-        
-        smb_versions = self.results.get('smb_versions', {})
-        if not any(smb_versions.values()):
-            recommendations.append("🔄 No SMB versions supported - Check SMB server configuration")
-        elif not smb_versions.get('SMB1', False):
-            recommendations.append("🔄 SMB1 is disabled - Consider enabling for legacy compatibility")
-        
-        auth_results = self.results.get('authentication', {})
-        if not any(auth_results.values()):
-            recommendations.append("🔐 All authentication methods failed - Check Windows security policies and provide valid credentials")
-        
-        shares = self.results.get('shares', {})
-        if not any(shares.values()):
-            recommendations.append("📁 No shares accessible - Check share permissions and ensure shares are published")
-        
-        if self.results.get('port_445', False) and not any(auth_results.values()):
-            recommendations.append("🔐 Port 445 open but authentication required - Provide valid Windows credentials")
-        
-        return recommendations
+    return False
+
+def validate_smb_configuration():
+    """Validate SMB configuration on the local system."""
+    print("\n=== SMB Configuration Validation ===")
     
-    def run_full_diagnostics(self) -> Dict:
-        """Run all diagnostic tests."""
-        print(f"\n[DEBUG] Starting SMB diagnostics for {self.target_ip}")
-        print("=" * 50)
-        
-        # Run all tests
-        self.test_port_connectivity()
-        self.test_network_connectivity()
-        self.test_smb_versions()
-        self.test_authentication_methods()
-        self.test_common_shares()
-        
-        # Generate recommendations
-        recommendations = self.generate_recommendations()
-        
-        # Print summary
-        print("\n" + "=" * 50)
-        print("\ud83d\udcca DIAGNOSTIC SUMMARY")
-        print("=" * 50)
-        
-        for category, results in self.results.items():
-            print(f"\n{category.upper()}:")
-            if isinstance(results, dict):
-                for key, value in results.items():
-                    status = "\u2705" if value else "\u274c"
-                    print(f"  {status} {key}")
-            else:
-                status = "\u2705" if results else "\u274c"
-                print(f"  {status} {category}")
-        
-        if recommendations:
-            print(f"\n\ud83d\udca1 RECOMMENDATIONS:")
-            for i, rec in enumerate(recommendations, 1):
-                print(f"  {i}. {rec}")
-        
-        # Save results to file
-        output_file = f"smb_diagnostics_{self.target_ip}_{int(time.time())}.json"
-        with open(output_file, 'w') as f:
-            json.dump({
-                'target_ip': self.target_ip,
-                'timestamp': time.time(),
-                'results': self.results,
-                'recommendations': recommendations
-            }, f, indent=2)
-        
-        print(f"\n\ud83d\udcc4 Detailed results saved to: {output_file}")
-        
-        return self.results
+    # Check if smbclient is available
+    rc, stdout, stderr = run_command("which smbclient")
+    if rc != 0:
+        print("❌ smbclient not found. Please install samba-client.")
+        return False
+    
+    print("✅ smbclient is available")
+    
+    # Check smbclient version
+    rc, stdout, stderr = run_command("smbclient -V")
+    if rc == 0:
+        print(f"✅ smbclient version: {stdout.strip()}")
+    
+    return True
+
+def generate_smb_test_report(host, username=None, password=None):
+    """Generate a comprehensive SMB test report."""
+    print("\n" + "="*60)
+    print("SMB CONNECTIVITY TEST REPORT")
+    print("="*60)
+    
+    # Validate local configuration
+    if not validate_smb_configuration():
+        print("❌ Local SMB configuration validation failed")
+        return False
+    
+    # Test connectivity
+    success = test_smb_connectivity(host, username, password)
+    
+    # Generate recommendations
+    print("\n=== RECOMMENDATIONS ===")
+    if success:
+        print("✅ SMB connectivity is working correctly!")
+        print("   - The Windows SMB share is accessible")
+        print("   - Authentication is working properly")
+    else:
+        print("❌ SMB connectivity issues detected:")
+        print("   - Check Windows Firewall settings")
+        print("   - Verify SMB service is running on Windows")
+        print("   - Ensure TestShare is created with proper permissions")
+        print("   - Check network connectivity between systems")
+        print("   - Verify credentials are correct")
+        print("   - Check SMB protocol version compatibility")
+    
+    return success
 
 def main():
-    parser = argparse.ArgumentParser(description='SMB Connectivity Diagnostics Tool')
-    parser.add_argument('target_ip', help='Target IP address')
-    parser.add_argument('-u', '--username', help='Username for authentication')
-    parser.add_argument('-p', '--password', help='Password for authentication')
-    parser.add_argument('--json', action='store_true', help='Output results in JSON format')
+    """Main function."""
+    if len(sys.argv) < 2:
+        print("Usage: python test_smb_diagnostics.py <target_host> [username] [password]")
+        print("Example: python test_smb_diagnostics.py 192.168.1.100 Administrator mypassword")
+        sys.exit(1)
     
-    args = parser.parse_args()
+    host = sys.argv[1]
+    username = sys.argv[2] if len(sys.argv) > 2 else None
+    password = sys.argv[3] if len(sys.argv) > 3 else None
     
-    diagnostics = SMBDiagnostics(args.target_ip, args.username, args.password)
-    results = diagnostics.run_full_diagnostics()
+    print(f"Target host: {host}")
+    if username:
+        print(f"Username: {username}")
+        print(f"Password: {'*' * len(password) if password else 'None'}")
     
-    if args.json:
-        print(json.dumps(results, indent=2))
+    success = generate_smb_test_report(host, username, password)
+    
+    if success:
+        print("\n🎉 SMB connectivity test PASSED")
+        sys.exit(0)
+    else:
+        print("\n💥 SMB connectivity test FAILED")
+        sys.exit(1)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main() 
