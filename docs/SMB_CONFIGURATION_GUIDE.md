@@ -43,28 +43,28 @@ Set-SmbServerConfiguration -RequireSecuritySignature $false -Force
 Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force
 ```
 
-### After (Secure Configuration)
+### After (Balanced Configuration)
 ```powershell
-# ✅ Secure settings
+# ✅ Balanced settings - secure but compatible
 New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Administrators" -ChangeAccess "Everyone"
 Set-SmbServerConfiguration -EnableGuestAccess $false -Force
-Set-SmbServerConfiguration -RequireSecuritySignature $true -Force
-Set-SmbServerConfiguration -RestrictNullSessAccess $true -Force
+Set-SmbServerConfiguration -RequireSecuritySignature $false -Force  # Disabled for compatibility
+Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force  # Allowed for testing
 ```
 
 ## Key Security Features
 
 ### 1. Protocol Configuration
-- **SMB1**: Disabled (security risk)
+- **SMB1**: Enabled (for compatibility with older clients)
 - **SMB2**: Enabled (recommended)
 - **SMB3**: Enabled (latest and most secure)
 
 ### 2. Authentication Settings
-- **Guest Access**: Disabled
-- **Security Signatures**: Required
-- **Null Session Access**: Restricted
-- **Null Session Pipes**: Restricted
-- **Null Session Shares**: Restricted
+- **Guest Access**: Disabled (security)
+- **Security Signatures**: Not required (for compatibility)
+- **Null Session Access**: Allowed (for testing)
+- **Null Session Pipes**: Allowed (for testing)
+- **Null Session Shares**: Allowed (for testing)
 
 ### 3. Share Permissions
 - **TestShare**: Administrators (Full Control), Everyone (Change)

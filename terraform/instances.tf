@@ -107,11 +107,11 @@ resource "aws_instance" "windows" {
         throw "Failed to start LanmanServer service"
     }
     
-    # 3. Configure SMB protocols (disable SMB1 for security)
+    # 3. Configure SMB protocols (enable SMB1 for compatibility)
     Write-Host "Configuring SMB protocols..."
     Set-SmbServerConfiguration -EnableSMB2Protocol $true -Force
     Set-SmbServerConfiguration -EnableSMB3Protocol $true -Force
-    Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force  # Disable SMB1 for security
+    Set-SmbServerConfiguration -EnableSMB1Protocol $true -Force  # Enable SMB1 for compatibility
     
     # 4. Create TestShare with better security
     $sharePath = "C:\TestShare"
@@ -127,10 +127,10 @@ resource "aws_instance" "windows" {
         Remove-SmbShare -Name "TestShare" -Force
     }
     
-    Write-Host "Creating SMB share 'TestShare' with restricted permissions..."
+    Write-Host "Creating SMB share 'TestShare' with compatible permissions..."
     New-SmbShare -Name "TestShare" -Path $sharePath -FullAccess "Administrators" -ChangeAccess "Everyone" -CachingMode None
     
-    # 5. Set NTFS permissions (more secure)
+    # 5. Set NTFS permissions (compatible)
     Write-Host "Setting NTFS permissions..."
     $acl = Get-Acl $sharePath
     # Remove existing Everyone permissions
@@ -140,24 +140,47 @@ resource "aws_instance" "windows" {
     $acl.SetAccessRule($rule)
     Set-Acl $sharePath $acl
     
-    # 6. Configure SMB security settings (more secure)
+    # 6. Configure SMB Security Settings (compatible)
     Write-Host "Configuring SMB security settings..."
-    Set-SmbServerConfiguration -RequireSecuritySignature $true -Force
-    Set-SmbServerConfiguration -EnableGuestAccess $false -Force  # Disable guest access for security
-    Set-SmbServerConfiguration -RestrictNullSessAccess $true -Force
-    Set-SmbServerConfiguration -RestrictNullSessPipes $true -Force
-    Set-SmbServerConfiguration -RestrictNullSessShares $true -Force
+    Set-SmbServerConfiguration -RequireSecuritySignature $false -Force  # Disable for compatibility
+    Set-SmbServerConfiguration -EnableGuestAccess $false -Force  # Keep guest access disabled
+    Set-SmbServerConfiguration -RestrictNullSessAccess $false -Force  # Allow null sessions for testing
+    Set-SmbServerConfiguration -RestrictNullSessPipes $false -Force
+    Set-SmbServerConfiguration -RestrictNullSessShares $false -Force
     
-    # 7. Create test file
+    # 7. Configure registry settings for compatibility
+    Write-Host "Configuring registry settings for compatibility..."
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "RestrictNullSessAccess" -Value 0 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionShares" -Value "TestShare" -Type String -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "NullSessionPipes" -Value "spoolss" -Type String -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "AutoShareWks" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanManServer\Parameters" -Name "AutoShareServer" -Value 1 -Type DWord -Force
+    
+    # 8. Configure local security policy for compatibility
+    Write-Host "Configuring local security policy for compatibility..."
+    secedit /export /cfg C:\secpol.cfg
+    (Get-Content C:\secpol.cfg) -replace 'RestrictAnonymousSAM = 1', 'RestrictAnonymousSAM = 0' | Set-Content C:\secpol.cfg
+    (Get-Content C:\secpol.cfg) -replace 'RestrictAnonymous = 1', 'RestrictAnonymous = 0' | Set-Content C:\secpol.cfg
+    secedit /configure /db C:\Windows\Security\Local.sdb /cfg C:\secpol.cfg /areas SECURITYPOLICY
+    Remove-Item C:\secpol.cfg -Force
+    
+    # 9. Configure network access settings for compatibility
+    Write-Host "Configuring network access settings..."
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "EveryoneIncludesAnonymous" -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "NoLMHash" -Value 0 -Type DWord -Force
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Value 1 -Type DWord -Force
+    
+    # 10. Create test file
     Write-Host "Creating test file..."
     "This is a test file for SMB connectivity - $(Get-Date)" | Out-File -FilePath "$sharePath\test.txt" -Encoding ASCII
     
-    # 8. Restart SMB services to apply changes
+    # 11. Restart SMB services to apply changes
     Write-Host "Restarting SMB services..."
     Restart-Service -Name "LanmanServer" -Force
-    Start-Sleep -Seconds 5
+    Restart-Service -Name "LanmanWorkstation" -Force
+    Start-Sleep -Seconds 10
     
-    # 9. Output Diagnostics
+    # 12. Output Diagnostics
     Write-Host "=== SMB Setup Complete ==="
     Write-Host "SMB Server Configuration:"
     Get-SmbServerConfiguration | Select-Object EnableSMB1Protocol, EnableSMB2Protocol, EnableSMB3Protocol, RequireSecuritySignature, EnableGuestAccess, RestrictNullSessAccess | Format-Table
