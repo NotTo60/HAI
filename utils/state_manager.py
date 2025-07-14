@@ -158,7 +158,7 @@ class StateManager:
             return f.encrypt(data)
         except ImportError:
             # Fallback to simple XOR encryption if cryptography is not available
-            logger.warning("cryptography not available, using simple XOR encryption")
+            self.logger.warning("cryptography not available, using simple XOR encryption")
             key = b"HAI_STATE_KEY_2024"
             encrypted = bytearray()
             for i, byte in enumerate(data):
@@ -192,7 +192,7 @@ class StateManager:
             return f.decrypt(data)
         except ImportError:
             # Fallback to simple XOR decryption if cryptography is not available
-            logger.warning("cryptography not available, using simple XOR decryption")
+            self.logger.warning("cryptography not available, using simple XOR decryption")
             key = b"HAI_STATE_KEY_2024"
             decrypted = bytearray()
             for i, byte in enumerate(data):
