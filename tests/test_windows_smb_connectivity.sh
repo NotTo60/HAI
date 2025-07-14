@@ -131,7 +131,10 @@ else
                 pwlen=${#CLEAN_PASSWORD}
                 echo "  Password: $CLEAN_PASSWORD (from previous step 'DEBUG WINDOWS ADMINISTRATOR PASSWORD', length: $pwlen) [CI DEBUG: DO NOT USE IN PRODUCTION]"
                 echo "  Domain: (default/empty)"
-                echo_and_run "Administrator enumeration (with password)" "timeout 20s bash -c 'echo \"$CLEAN_PASSWORD\" | smbclient -L \\\"//$TARGET_IP\\\" -U \"Administrator\" -W . 2>&1' > /tmp/smb_admin_auth.txt"
+                echo_and_run "Administrator enumeration (with password)" "timeout 20s bash -c 'printf \"%s\" \"\$0\" | smbclient -L \"//$TARGET_IP\" -U \"Administrator\" -W . 2>&1' \"$CLEAN_PASSWORD\" > /tmp/smb_admin_auth.txt"
+                # Always print output, even if timeout or error
+                echo "[DEBUG] smbclient output (admin with password):"
+                cat /tmp/smb_admin_auth.txt
                 if grep -q "TestShare\|C\$" /tmp/smb_admin_auth.txt; then
                     echo ""
                     echo "=== FINAL RESULT ==="
