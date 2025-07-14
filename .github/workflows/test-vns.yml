@@ -115,49 +115,40 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: bash tests/test_linux_ssh_connectivity.sh ${{ inputs.linux_ip }} ${{ inputs.detected_username }}
 
-      - name: Test SMB to Windows
-        shell: pwsh
+      - name: Test SMB to Windows (cross-platform)
         working-directory: ${{ github.workspace }}
         run: |
           echo "Testing SMB connectivity to Windows instance..."
-          
-          # Read the retrieved password
-          if (Test-Path temp_auth.txt) {
-            $WINDOWS_PASSWORD = Get-Content temp_auth.txt -Raw
-            $WINDOWS_PASSWORD = $WINDOWS_PASSWORD.Trim()
-            
-            if ($WINDOWS_PASSWORD -ne "DECRYPTION_FAILED" -and $WINDOWS_PASSWORD -ne "NO_PASSWORD_AVAILABLE" -and $WINDOWS_PASSWORD -ne "NO_INSTANCE_FOUND") {
-              Write-Host "Using retrieved Windows administrator password for SMB authentication"
-              tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }} -Password $WINDOWS_PASSWORD
-            } else {
-              Write-Host "No valid password available, testing with anonymous access"
-              tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }}
-            }
-          } else {
-            Write-Host "Password file not found, testing with anonymous access"
-            tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }}
-          }
-
-      - name: Test SMB to Windows (Bash fallback)
-        if: failure()
-        working-directory: ${{ github.workspace }}
-        run: |
-          echo "Testing SMB connectivity to Windows instance (Bash fallback)..."
-          
-          # Read the retrieved password
-          if [ -f temp_auth.txt ]; then
-            WINDOWS_PASSWORD=$(cat temp_auth.txt)
-            if [ "$WINDOWS_PASSWORD" != "DECRYPTION_FAILED" ] && [ "$WINDOWS_PASSWORD" != "NO_PASSWORD_AVAILABLE" ] && [ "$WINDOWS_PASSWORD" != "NO_INSTANCE_FOUND" ]; then
-              echo "Using retrieved Windows administrator password for SMB authentication"
-              tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }} "$WINDOWS_PASSWORD"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            if [ -f temp_auth.txt ]; then
+              WINDOWS_PASSWORD=$(cat temp_auth.txt)
+              if [ "$WINDOWS_PASSWORD" != "DECRYPTION_FAILED" ] && [ "$WINDOWS_PASSWORD" != "NO_PASSWORD_AVAILABLE" ] && [ "$WINDOWS_PASSWORD" != "NO_INSTANCE_FOUND" ]; then
+                echo "Using retrieved Windows administrator password for SMB authentication"
+                pwsh tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }} -Password "$WINDOWS_PASSWORD"
+              else
+                echo "No valid password available, testing with anonymous access"
+                pwsh tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }}
+              fi
             else
-              echo "No valid password available, testing with anonymous access"
-              tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }}
+              echo "Password file not found, testing with anonymous access"
+              pwsh tests/test_windows_smb_connectivity.ps1 -TargetIP ${{ inputs.windows_ip }}
             fi
           else
-            echo "Password file not found, testing with anonymous access"
-            tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }}
+            if [ -f temp_auth.txt ]; then
+              WINDOWS_PASSWORD=$(cat temp_auth.txt)
+              if [ "$WINDOWS_PASSWORD" != "DECRYPTION_FAILED" ] && [ "$WINDOWS_PASSWORD" != "NO_PASSWORD_AVAILABLE" ] && [ "$WINDOWS_PASSWORD" != "NO_INSTANCE_FOUND" ]; then
+                echo "Using retrieved Windows administrator password for SMB authentication"
+                bash tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }} "$WINDOWS_PASSWORD"
+              else
+                echo "No valid password available, testing with anonymous access"
+                bash tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }}
+              fi
+            else
+              echo "Password file not found, testing with anonymous access"
+              bash tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }}
+            fi
           fi
+        shell: bash
 
       - name: Test RDP connectivity
         run: |
