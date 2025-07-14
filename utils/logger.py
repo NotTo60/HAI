@@ -1,6 +1,7 @@
 import logging
 import os
 from utils.constants import LOG_FORMAT, DEFAULT_LOG_LEVEL, LOGS_DIR
+from logging.handlers import RotatingFileHandler
 
 def get_logger(name, level=DEFAULT_LOG_LEVEL):
     """Get a logger with the specified name and level."""
@@ -23,7 +24,7 @@ def get_logger(name, level=DEFAULT_LOG_LEVEL):
             os.makedirs(LOGS_DIR)
             
         log_file = os.path.join(LOGS_DIR, f"{name}.log")
-        file_handler = logging.FileHandler(log_file)
+        file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5)
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)

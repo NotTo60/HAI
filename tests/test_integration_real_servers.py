@@ -44,6 +44,12 @@ required_envs = [
     # TEST_WINDOWS_PASS no longer needed - password is set by Terraform to "TemporaryPassword123!"
 ]
 
+ftp_envs = ["TEST_FTP_HOST", "TEST_FTP_USER", "TEST_FTP_PASS"]
+skip_if_no_ftp = pytest.mark.skipif(
+    not all(os.environ.get(e) for e in ftp_envs),
+    reason="FTP server credentials not set in environment"
+)
+
 skip_if_no_env = pytest.mark.skipif(
     not all(os.environ.get(e) for e in required_envs),
     reason="Real server credentials not set in environment"
@@ -110,4 +116,28 @@ def test_windows_wmi_full():
     assert server.user.lower() in out.lower()
     # File transfer
     _test_file_transfer(conn, tmp_content=b"wmismbtest", remote_name="hai_test_file_wmi.txt")
+    conn.disconnect() 
+
+@skip_if_no_ftp
+def test_ftp_full():
+    server = ServerEntry(
+        hostname="ftp-test",
+        ip=os.environ["TEST_FTP_HOST"],
+        dns="",
+        location="test-lab",
+        user=os.environ["TEST_FTP_USER"],
+        password=os.environ["TEST_FTP_PASS"],
+        ssh_key=None,
+        connection_method="ftp",
+        port=int(os.environ.get("TEST_FTP_PORT", 21)),
+        active=True,
+        grade="must-win",
+        tool=None,
+        os="linux",
+        tunnel_routes=[TunnelRoute(name="direct", active=True, hops=[TunnelHop(ip=os.environ["TEST_FTP_HOST"], user=os.environ["TEST_FTP_USER"], method="ftp", port=int(os.environ.get("TEST_FTP_PORT", 21)))])],
+        file_transfer_protocol="ftp",
+        config=None
+    )
+    conn = connect_with_fallback(server)
+    _test_file_transfer(conn, tmp_content=b"ftptest", remote_name="hai_test_file_ftp.txt")
     conn.disconnect() 

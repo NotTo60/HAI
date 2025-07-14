@@ -117,6 +117,35 @@ def create_demo_servers():
     )
     servers.append(impacket_server)
     
+    # FTP server
+    ftp_server = ServerEntry(
+        hostname="demo-ftp",
+        ip="192.168.1.103",
+        user="ftpuser",
+        password="ftppass",  # pragma: allowlist secret
+        connection_method="ftp",
+        port=21,
+        active=True,
+        grade="important",
+        os="linux",
+        tunnel_routes=[
+            TunnelRoute(
+                name="direct",
+                active=True,
+                hops=[
+                    TunnelHop(
+                        ip="192.168.1.103",
+                        user="ftpuser",
+                        method="ftp",
+                        port=21
+                    )
+                ]
+            )
+        ],
+        file_transfer_protocol="ftp"
+    )
+    servers.append(ftp_server)
+    
     return servers
 
 def demo_basic_operations():
@@ -161,8 +190,11 @@ def demo_basic_operations():
             show_progress=True,
             description="Uploading demo file"
         )
-        
         print(f"Upload results: {results.total_successful}/{results.total_servers} successful")
+        # Show FTP result
+        ftp_result = [r for r in results.results if r.server.connection_method == "ftp"]
+        if ftp_result:
+            print(f"FTP upload result: {ftp_result[0].success}")
         
         # Clean up
         os.unlink(test_file)
@@ -183,8 +215,11 @@ def demo_basic_operations():
             show_progress=True,
             description="Downloading demo file"
         )
-        
         print(f"Download results: {results.total_successful}/{results.total_servers} successful")
+        # Show FTP result
+        ftp_result = [r for r in results.results if r.server.connection_method == "ftp"]
+        if ftp_result:
+            print(f"FTP download result: {ftp_result[0].success}")
         
         # Clean up
         import shutil
@@ -332,3 +367,17 @@ def main():
 
 if __name__ == "__main__":
     main() 
+#
+# ---
+#
+# Example: Using iPython Magics for Route Management
+#
+# In an iPython or Jupyter session, after loading your server configs:
+#
+# %load_ext magics.route_magics
+# %list_routes demo-ssh
+# %activate_route demo-ssh direct
+# %deactivate_route demo-ssh direct
+# %refresh_routes demo-ssh
+#
+# These magics allow you to interactively manage tunnel routes for any server. 

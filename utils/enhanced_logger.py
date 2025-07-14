@@ -22,6 +22,7 @@ from utils.constants import (
     LOGS_DIR, LOG_FORMAT, LOG_DATE_FORMAT,
     DEFAULT_LOG_LEVEL, ENHANCED_LOG_BUFFER_SIZE, MAX_OUTPUT_LENGTH, MAX_RESULT_LENGTH
 )
+from logging.handlers import RotatingFileHandler
 
 
 class EnhancedLogger:
@@ -47,7 +48,7 @@ class EnhancedLogger:
             # File handler
             log_file = Path(LOGS_DIR) / f"{name}.log"
             log_file.parent.mkdir(exist_ok=True)
-            file_handler = logging.FileHandler(log_file)
+            file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5)
             file_handler.setLevel(logging.DEBUG)
             
             # Formatter

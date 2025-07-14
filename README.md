@@ -61,11 +61,36 @@ echo "AWS secrets have been set for the HAI repository!"
 - **iPython magics for interactive route management** (`magics/` folder)
 - **Logging, validation, and modular config**
 
-## Requirements
-- Python 3.8+
-- [Terraform](https://www.terraform.io/) (for CI/CD infra)
-- [AWS CLI](https://aws.amazon.com/cli/) (for local infra management)
-- See `requirements.txt` for Python dependencies
+---
+
+## iPython Magics for Route Management
+
+HAI provides iPython magics for interactive tunnel route management. To use:
+
+1. Load the magics in an iPython or Jupyter session:
+   ```python
+   %load_ext magics.route_magics
+   ```
+2. List all routes for a host:
+   ```python
+   %list_routes <hostname>
+   ```
+3. Activate a route:
+   ```python
+   %activate_route <hostname> <route_name>
+   ```
+4. Deactivate a route:
+   ```python
+   %deactivate_route <hostname> <route_name>
+   ```
+5. Refresh all routes (try to reactivate inactive ones):
+   ```python
+   %refresh_routes <hostname>
+   ```
+
+See `examples/demo_implemented_features.py` for a hands-on usage example in code comments.
+
+---
 
 ## Directory Structure
 - `core/` — Main logic: connection manager, file transfer, command runner, server schema, **threaded operations**
@@ -79,6 +104,23 @@ echo "AWS secrets have been set for the HAI repository!"
 - `logs/` — **Per-server and system logs with rotation**
 - `state/` — **Saved operation states for resuming work**
 - `terraform/` — AWS infrastructure as code for CI/CD
+
+---
+
+## Extending HAI: Adding a New Connector
+
+To add support for a new protocol:
+
+1. **Create a new connector class** in `connectors/`, inheriting from `BaseConnector` and implementing:
+   - `connect(self)`
+   - `disconnect(self)`
+   - `exec_command(self, command)`
+   - `is_alive(self)`
+2. **Add your connector to `connectors/__init__.py`** and to the dynamic selection logic in `core/tunnel_builder.py`.
+3. **Update `SUPPORTED_CONNECTION_METHODS` in `utils/constants.py`** if needed.
+4. **(Optional) Add tests and examples** for your new connector in `tests/` and `examples/`.
+
+This makes your connector available for use in server configs and threaded operations.
 
 ---
 
