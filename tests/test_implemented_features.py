@@ -174,6 +174,7 @@ class TestFileTransfer:
 class TestThreadedOperations:
     """Test threaded operations functionality."""
     
+    @pytest.mark.timeout(10)
     def test_batch_result_creation(self):
         """Test BatchResult can be created."""
         from hai.core.threaded_operations import BatchResult, OperationResult
