@@ -17,7 +17,7 @@ import argparse
 from typing import Optional, Tuple
 import os
 
-def test_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
+def check_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
     """Test if a port is reachable."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -29,13 +29,13 @@ def test_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
         print(f"Error testing port {port}: {e}")
         return False
 
-def test_rdp_connectivity(host: str) -> bool:
+def check_rdp_connectivity(host: str) -> bool:
     """Test RDP connectivity to the target host."""
     print("\n=== TESTING RDP CONNECTIVITY ===")
     print(f"Testing RDP port 3389 connectivity to {host}...")
     
     # Test if RDP port is open
-    if test_port_connectivity(host, 3389, 5):
+    if check_port_connectivity(host, 3389, 5):
         print("✅ RDP port 3389 is open and accessible")
         
         # Test RDP connection attempt (without actually connecting)
@@ -61,7 +61,7 @@ def test_rdp_connectivity(host: str) -> bool:
         print("❌ RDP port 3389 is not accessible")
         return False
 
-def test_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
+def check_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
     """Test SMB connectivity to the target host."""
     print("\n=== TESTING SMB CONNECTIVITY ===")
     
@@ -71,7 +71,7 @@ def test_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
     
     for attempt in range(1, max_attempts + 1):
         print(f"Testing port 445 connectivity (attempt {attempt} of {max_attempts})...")
-        if test_port_connectivity(host, 445, 3):
+        if check_port_connectivity(host, 445, 3):
             print("✅ Port 445 is reachable")
             break
         else:
@@ -161,7 +161,7 @@ def main():
     print(f"Timestamp: {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
     
     # Test SMB first
-    if test_smb_connectivity(args.target_ip, args.password):
+    if check_smb_connectivity(args.target_ip, args.password):
         print("\n=== FINAL RESULT ===")
         print("✅ SMB CONNECTIVITY SUCCESSFUL")
         print("Windows SMB connectivity is working properly")
@@ -172,7 +172,7 @@ def main():
         print("Falling back to RDP connectivity test...")
         
         # Test RDP as fallback
-        if test_rdp_connectivity(args.target_ip):
+        if check_rdp_connectivity(args.target_ip):
             print("\n=== FINAL RESULT ===")
             print("⚠️  SMB FAILED but RDP SUCCESSFUL")
             print("SMB connectivity failed, but RDP connectivity is working")

@@ -7,7 +7,7 @@ import sys
 import socket
 from unittest.mock import patch, MagicMock
 
-def test_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
+def check_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
     """Test if a port is reachable."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,25 +19,25 @@ def test_port_connectivity(host: str, port: int, timeout: int = 5) -> bool:
         print(f"Error testing port {port}: {e}")
         return False
 
-def test_rdp_connectivity(host: str) -> bool:
+def check_rdp_connectivity(host: str) -> bool:
     """Test RDP connectivity to the target host."""
     print(f"\n=== TESTING RDP CONNECTIVITY ===")
     print(f"Testing RDP port 3389 connectivity to {host}...")
     
     # Test if RDP port is open
-    if test_port_connectivity(host, 3389, 5):
+    if check_port_connectivity(host, 3389, 5):
         print("✅ RDP port 3389 is open and accessible")
         return True
     else:
         print("❌ RDP port 3389 is not accessible")
         return False
 
-def test_smb_connectivity(host: str, password=None) -> bool:
+def check_smb_connectivity(host: str, password=None) -> bool:
     """Test SMB connectivity to the target host."""
     print(f"\n=== TESTING SMB CONNECTIVITY ===")
     
     # Test if SMB port is open
-    if test_port_connectivity(host, 445, 3):
+    if check_port_connectivity(host, 445, 3):
         print("✅ Port 445 is reachable")
         return True
     else:
@@ -54,7 +54,7 @@ def main():
         mock_socket.return_value.connect_ex.return_value = 0
         mock_socket.return_value.close.return_value = None
         
-        if test_smb_connectivity("192.168.1.100"):
+        if check_smb_connectivity("192.168.1.100"):
             print("✅ SMB CONNECTIVITY SUCCESSFUL")
             print("No need to test RDP - SMB is sufficient")
             return 0
@@ -62,7 +62,7 @@ def main():
             print("❌ SMB CONNECTIVITY FAILED")
             print("Falling back to RDP connectivity test...")
             
-            if test_rdp_connectivity("192.168.1.100"):
+            if check_rdp_connectivity("192.168.1.100"):
                 print("⚠️  SMB FAILED but RDP SUCCESSFUL")
                 return 1
             else:
@@ -83,14 +83,14 @@ def main():
         mock_socket.return_value.connect_ex.side_effect = mock_connect_ex
         mock_socket.return_value.close.return_value = None
         
-        if test_smb_connectivity("192.168.1.100"):
+        if check_smb_connectivity("192.168.1.100"):
             print("✅ SMB CONNECTIVITY SUCCESSFUL")
             return 0
         else:
             print("❌ SMB CONNECTIVITY FAILED")
             print("Falling back to RDP connectivity test...")
             
-            if test_rdp_connectivity("192.168.1.100"):
+            if check_rdp_connectivity("192.168.1.100"):
                 print("⚠️  SMB FAILED but RDP SUCCESSFUL")
                 return 1
             else:
@@ -103,14 +103,14 @@ def main():
         mock_socket.return_value.connect_ex.return_value = 1  # All connections fail
         mock_socket.return_value.close.return_value = None
         
-        if test_smb_connectivity("192.168.1.100"):
+        if check_smb_connectivity("192.168.1.100"):
             print("✅ SMB CONNECTIVITY SUCCESSFUL")
             return 0
         else:
             print("❌ SMB CONNECTIVITY FAILED")
             print("Falling back to RDP connectivity test...")
             
-            if test_rdp_connectivity("192.168.1.100"):
+            if check_rdp_connectivity("192.168.1.100"):
                 print("⚠️  SMB FAILED but RDP SUCCESSFUL")
                 return 1
             else:
