@@ -62,7 +62,7 @@ def check_rdp_connectivity(host: str) -> bool:
         return False
 
 def check_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
-    """Test SMB connectivity to the target host."""
+    """Test SMB connectivity to the target host with multiple authentication methods."""
     print("\n=== TESTING SMB CONNECTIVITY ===")
     
     # Retry loop for port 445
@@ -91,32 +91,57 @@ def check_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
         print("❌ smbclient not found. Please install samba-client.")
         return False
 
-    # Try anonymous access first
-    print("Testing anonymous SMB enumeration...")
+    # Method 1: Try anonymous access with different protocols
+    print("Testing anonymous SMB enumeration with different protocols...")
+    for protocol in ["SMB3", "SMB2", "NT1"]:
+        try:
+            print(f"  Trying protocol: {protocol}")
+            result = subprocess.run(
+                ["smbclient", "-L", f"//{host}/", "-U", "", "-N", "-m", protocol, "-d", "0"],
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            
+            if result.returncode == 0 and ("TestShare" in result.stdout or "C$" in result.stdout or "IPC$" in result.stdout):
+                print(f"✅ Anonymous SMB access successful using {protocol}")
+                # Print found shares
+                for line in result.stdout.split('\n'):
+                    if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line:
+                        print(f"   {line.strip()}")
+                return True
+            else:
+                print(f"   ❌ Anonymous {protocol} failed")
+        except subprocess.TimeoutExpired:
+            print(f"   ❌ Anonymous {protocol} timed out")
+        except Exception as e:
+            print(f"   ❌ Anonymous {protocol} failed: {e}")
+
+    # Method 2: Try guest access
+    print("Testing guest SMB access...")
     try:
         result = subprocess.run(
-            ["smbclient", "-L", f"//{host}/", "-U", "", "-N", "-d", "0"],
+            ["smbclient", "-L", f"//{host}/", "-U", "guest", "-N", "-d", "0"],
             capture_output=True,
             text=True,
-            timeout=20
+            timeout=15
         )
         
-        if result.returncode == 0 and ("TestShare" in result.stdout or "C$" in result.stdout):
-            print("✅ Anonymous SMB access successful")
+        if result.returncode == 0 and ("TestShare" in result.stdout or "C$" in result.stdout or "IPC$" in result.stdout):
+            print("✅ Guest SMB access successful")
             # Print found shares
             for line in result.stdout.split('\n'):
-                if "Sharename" in line or "TestShare" in line or "C$" in line:
+                if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line:
                     print(f"   {line.strip()}")
             return True
         else:
-            print("❌ Anonymous SMB enumeration failed")
-            print(f"   Error: {result.stderr}")
+            print("❌ Guest SMB access failed")
     except subprocess.TimeoutExpired:
-        print("❌ Anonymous SMB enumeration timed out")
+        print("❌ Guest SMB enumeration timed out")
     except Exception as e:
-        print(f"❌ Anonymous SMB enumeration failed: {e}")
+        print(f"❌ Guest SMB enumeration failed: {e}")
 
-    # Try with credentials if available
+    # Method 3: Try authenticated access if credentials available
     if password and password not in ["DECRYPTION_FAILED", "NO_PASSWORD_AVAILABLE", "NO_INSTANCE_FOUND"]:
         print("Testing authenticated SMB access...")
         try:
@@ -124,17 +149,17 @@ def check_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
             clean_password = ''.join(c for c in password if c.isprintable())
             
             result = subprocess.run(
-                ["smbclient", "-L", f"//{host}/", "-U", f"Administrator%{clean_password}", "-d", "0"],
+                ["smbclient", "-L", f"//{host}/", "-U", f"Administrator%{clean_password}", "-W", ".", "-d", "0"],
                 capture_output=True,
                 text=True,
-                timeout=20
+                timeout=15
             )
             
-            if result.returncode == 0 and ("TestShare" in result.stdout or "C$" in result.stdout):
+            if result.returncode == 0 and ("TestShare" in result.stdout or "C$" in result.stdout or "IPC$" in result.stdout):
                 print("✅ Authenticated SMB access successful")
                 # Print found shares
                 for line in result.stdout.split('\n'):
-                    if "Sharename" in line or "TestShare" in line or "C$" in line:
+                    if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line:
                         print(f"   {line.strip()}")
                 return True
             else:
@@ -145,58 +170,87 @@ def check_smb_connectivity(host: str, password: Optional[str] = None) -> bool:
         except Exception as e:
             print(f"❌ Authenticated SMB enumeration failed: {e}")
 
+    # Method 4: Try with different SMB protocol versions for authenticated access
+    if password and password not in ["DECRYPTION_FAILED", "NO_PASSWORD_AVAILABLE", "NO_INSTANCE_FOUND"]:
+        print("Testing authenticated SMB access with different protocols...")
+        clean_password = ''.join(c for c in password if c.isprintable())
+        
+        for protocol in ["SMB3", "SMB2", "NT1"]:
+            try:
+                print(f"  Trying authenticated {protocol}")
+                result = subprocess.run(
+                    ["smbclient", "-L", f"//{host}/", "-U", f"Administrator%{clean_password}", "-m", protocol, "-W", ".", "-d", "0"],
+                    capture_output=True,
+                    text=True,
+                    timeout=15
+                )
+                
+                if result.returncode == 0 and ("TestShare" in result.stdout or "C$" in result.stdout or "IPC$" in result.stdout):
+                    print(f"✅ Authenticated SMB access successful using {protocol}")
+                    # Print found shares
+                    for line in result.stdout.split('\n'):
+                        if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line:
+                            print(f"   {line.strip()}")
+                    return True
+                else:
+                    print(f"   ❌ Authenticated {protocol} failed")
+            except subprocess.TimeoutExpired:
+                print(f"   ❌ Authenticated {protocol} timed out")
+            except Exception as e:
+                print(f"   ❌ Authenticated {protocol} failed: {e}")
+
     print("❌ All SMB authentication methods failed")
     return False
 
 def main():
     """Main function to run the connectivity tests."""
-    parser = argparse.ArgumentParser(description="Enhanced Windows Connectivity Test with RDP Fallback")
+    parser = argparse.ArgumentParser(description="Enhanced Windows Connectivity Test with RDP First, SMB Fallback")
     parser.add_argument("target_ip", help="Target Windows IP address")
     parser.add_argument("password", nargs="?", help="Windows Administrator password")
     
     args = parser.parse_args()
     
-    print("=== ENHANCED WINDOWS CONNECTIVITY TEST WITH RDP FALLBACK ===")
+    print("=== ENHANCED WINDOWS CONNECTIVITY TEST WITH RDP FIRST, SMB FALLBACK ===")
     print(f"Target IP: {args.target_ip}")
     print(f"Timestamp: {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
     
-    # Test SMB first
-    if check_smb_connectivity(args.target_ip, args.password):
+    # Test RDP first
+    if check_rdp_connectivity(args.target_ip):
         print("\n=== FINAL RESULT ===")
-        print("✅ SMB CONNECTIVITY SUCCESSFUL")
-        print("Windows SMB connectivity is working properly")
-        print("No need to test RDP - SMB is sufficient")
+        print("✅ RDP CONNECTIVITY SUCCESSFUL")
+        print("Windows RDP connectivity is working properly")
+        print("No need to test SMB - RDP is sufficient")
         sys.exit(0)
     else:
-        print("\n❌ SMB CONNECTIVITY FAILED")
-        print("Falling back to RDP connectivity test...")
+        print("\n❌ RDP CONNECTIVITY FAILED")
+        print("Falling back to SMB connectivity test...")
         
-        # Test RDP as fallback
-        if check_rdp_connectivity(args.target_ip):
+        # Test SMB as fallback
+        if check_smb_connectivity(args.target_ip, args.password):
             print("\n=== FINAL RESULT ===")
-            print("⚠️  SMB FAILED but RDP SUCCESSFUL")
-            print("SMB connectivity failed, but RDP connectivity is working")
-            print("Windows instance is reachable via RDP (port 3389)")
+            print("⚠️  RDP FAILED but SMB SUCCESSFUL")
+            print("RDP connectivity failed, but SMB connectivity is working")
+            print("Windows instance is reachable via SMB (port 445)")
             print()
-            print("RDP connection command (for manual testing):")
-            print(f"xfreerdp /v:{args.target_ip} /u:Administrator /p:\"<password>\" /cert:ignore")
+            print("SMB connection command (for manual testing):")
+            print(f"smbclient //{args.target_ip}/TestShare -U Administrator")
             print()
-            print("Troubleshooting SMB issues:")
-            print("- Check Windows Firewall rules for SMB (port 445)")
-            print("- Verify SMB service is running on Windows")
-            print("- Ensure TestShare is created with proper permissions")
-            print("- Check Administrator password and account status")
-            print("- Verify SMB protocol versions are enabled")
+            print("Troubleshooting RDP issues:")
+            print("- Check Windows Firewall rules for RDP (port 3389)")
+            print("- Verify Remote Desktop service is running on Windows")
+            print("- Ensure Remote Desktop is enabled in System Properties")
+            print("- Check if RDP is allowed in Windows Firewall")
+            print("- Verify the instance security group allows port 3389")
             sys.exit(1)  # Exit with error as requested
         else:
             print("\n=== FINAL RESULT ===")
-            print("❌ BOTH SMB AND RDP CONNECTIVITY FAILED")
+            print("❌ BOTH RDP AND SMB CONNECTIVITY FAILED")
             print("Windows instance is not reachable via either protocol")
             print()
             print("Debugging information:")
             print(f"- Target IP: {args.target_ip}")
-            print("- SMB port 445: Not accessible")
             print("- RDP port 3389: Not accessible")
+            print("- SMB port 445: Not accessible")
             print()
             print("Possible issues:")
             print("- Windows instance may not be running")

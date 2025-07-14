@@ -39,7 +39,7 @@ class WindowsConnectivityTester:
             return False
     
     def test_smb_connectivity(self, server: ServerEntry) -> Dict[str, Any]:
-        """Test SMB connectivity to a Windows server."""
+        """Test SMB connectivity to a Windows server with multiple authentication methods."""
         self.logger.info(f"Testing SMB connectivity to {server.hostname} ({server.ip})")
         
         result = {
@@ -57,40 +57,97 @@ class WindowsConnectivityTester:
         
         result["details"]["port_open"] = True
         
-        # Test SMB enumeration
+        # Test SMB enumeration with multiple authentication methods
         try:
-            # Try anonymous access first
-            cmd = ["smbclient", "-L", f"//{server.ip}/", "-U", "", "-N", "-d", "0"]
-            process = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            # Method 1: Try anonymous access with different protocols
+            for protocol in ["SMB3", "SMB2", "NT1"]:
+                try:
+                    cmd = ["smbclient", "-L", f"//{server.ip}/", "-U", "", "-N", "-m", protocol, "-d", "0"]
+                    process = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                    
+                    if process.returncode == 0 and ("TestShare" in process.stdout or "C$" in process.stdout or "IPC$" in process.stdout):
+                        result["success"] = True
+                        result["details"]["access_method"] = "anonymous"
+                        result["details"]["protocol"] = protocol
+                        result["details"]["shares"] = [line.strip() for line in process.stdout.split('\n') 
+                                                     if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line]
+                        self.logger.info(f"SMB anonymous access successful to {server.hostname} using {protocol}")
+                        return result
+                except subprocess.TimeoutExpired:
+                    continue
+                except Exception:
+                    continue
             
-            if process.returncode == 0 and ("TestShare" in process.stdout or "C$" in process.stdout):
-                result["success"] = True
-                result["details"]["access_method"] = "anonymous"
-                result["details"]["shares"] = [line.strip() for line in process.stdout.split('\n') 
-                                             if "Sharename" in line or "TestShare" in line or "C$" in line]
-                self.logger.info(f"SMB anonymous access successful to {server.hostname}")
-                return result
+            # Method 2: Try guest access
+            try:
+                cmd = ["smbclient", "-L", f"//{server.ip}/", "-U", "guest", "-N", "-d", "0"]
+                process = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                
+                if process.returncode == 0 and ("TestShare" in process.stdout or "C$" in process.stdout or "IPC$" in process.stdout):
+                    result["success"] = True
+                    result["details"]["access_method"] = "guest"
+                    result["details"]["shares"] = [line.strip() for line in process.stdout.split('\n') 
+                                                 if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line]
+                    self.logger.info(f"SMB guest access successful to {server.hostname}")
+                    return result
+            except subprocess.TimeoutExpired:
+                pass
+            except Exception:
+                pass
             
-            # Try authenticated access if credentials available
+            # Method 3: Try authenticated access if credentials available
             if server.password and server.password not in ["DECRYPTION_FAILED", "NO_PASSWORD_AVAILABLE", "NO_INSTANCE_FOUND"]:
                 clean_password = ''.join(c for c in server.password if c.isprintable())
-                cmd = ["smbclient", "-L", f"//{server.ip}/", "-U", f"{server.user}%{clean_password}", "-d", "0"]
-                process = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
                 
-                if process.returncode == 0 and ("TestShare" in process.stdout or "C$" in process.stdout):
-                    result["success"] = True
-                    result["details"]["access_method"] = "authenticated"
-                    result["details"]["shares"] = [line.strip() for line in process.stdout.split('\n') 
-                                                 if "Sharename" in line or "TestShare" in line or "C$" in line]
-                    self.logger.info(f"SMB authenticated access successful to {server.hostname}")
-                    return result
+                # Try different authentication methods
+                auth_methods = [
+                    f"{server.user}%{clean_password}",
+                    f"{server.user}%{clean_password}",
+                    f"{server.user}%{clean_password}"
+                ]
+                
+                for auth_method in auth_methods:
+                    try:
+                        cmd = ["smbclient", "-L", f"//{server.ip}/", "-U", auth_method, "-W", ".", "-d", "0"]
+                        process = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                        
+                        if process.returncode == 0 and ("TestShare" in process.stdout or "C$" in process.stdout or "IPC$" in process.stdout):
+                            result["success"] = True
+                            result["details"]["access_method"] = "authenticated"
+                            result["details"]["shares"] = [line.strip() for line in process.stdout.split('\n') 
+                                                         if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line]
+                            self.logger.info(f"SMB authenticated access successful to {server.hostname}")
+                            return result
+                    except subprocess.TimeoutExpired:
+                        continue
+                    except Exception:
+                        continue
             
-            result["error"] = "SMB enumeration failed"
-            result["details"]["stdout"] = process.stdout
-            result["details"]["stderr"] = process.stderr
+            # Method 4: Try with different SMB protocol versions
+            if server.password and server.password not in ["DECRYPTION_FAILED", "NO_PASSWORD_AVAILABLE", "NO_INSTANCE_FOUND"]:
+                clean_password = ''.join(c for c in server.password if c.isprintable())
+                
+                for protocol in ["SMB3", "SMB2", "NT1"]:
+                    try:
+                        cmd = ["smbclient", "-L", f"//{server.ip}/", "-U", f"{server.user}%{clean_password}", "-m", protocol, "-W", ".", "-d", "0"]
+                        process = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+                        
+                        if process.returncode == 0 and ("TestShare" in process.stdout or "C$" in process.stdout or "IPC$" in process.stdout):
+                            result["success"] = True
+                            result["details"]["access_method"] = "authenticated"
+                            result["details"]["protocol"] = protocol
+                            result["details"]["shares"] = [line.strip() for line in process.stdout.split('\n') 
+                                                         if "Sharename" in line or "TestShare" in line or "C$" in line or "IPC$" in line]
+                            self.logger.info(f"SMB authenticated access successful to {server.hostname} using {protocol}")
+                            return result
+                    except subprocess.TimeoutExpired:
+                        continue
+                    except Exception:
+                        continue
             
-        except subprocess.TimeoutExpired:
-            result["error"] = "SMB enumeration timed out"
+            result["error"] = "All SMB authentication methods failed"
+            result["details"]["last_attempt"] = "Multiple authentication methods tried"
+            
         except FileNotFoundError:
             result["error"] = "smbclient not found"
         except Exception as e:
@@ -138,44 +195,44 @@ class WindowsConnectivityTester:
         return result
     
     def test_windows_connectivity(self, server: ServerEntry) -> Dict[str, Any]:
-        """Test Windows connectivity with SMB first, then RDP fallback."""
+        """Test Windows connectivity with RDP first, then SMB fallback."""
         self.logger.info(f"Starting Windows connectivity test for {server.hostname} ({server.ip})")
         
-        # Test SMB first
-        smb_result = self.test_smb_connectivity(server)
-        
-        if smb_result["success"]:
-            self.logger.info(f"SMB connectivity successful to {server.hostname}")
-            return {
-                "overall_success": True,
-                "primary_protocol": "smb",
-                "fallback_used": False,
-                "smb_result": smb_result,
-                "rdp_result": None
-            }
-        
-        # SMB failed, test RDP as fallback
-        self.logger.info(f"SMB failed for {server.hostname}, testing RDP fallback")
+        # Test RDP first
         rdp_result = self.test_rdp_connectivity(server)
         
         if rdp_result["success"]:
-            self.logger.warning(f"SMB failed but RDP successful for {server.hostname}")
+            self.logger.info(f"RDP connectivity successful to {server.hostname}")
             return {
                 "overall_success": True,
                 "primary_protocol": "rdp",
+                "fallback_used": False,
+                "rdp_result": rdp_result,
+                "smb_result": None
+            }
+        
+        # RDP failed, test SMB as fallback
+        self.logger.info(f"RDP failed for {server.hostname}, testing SMB fallback")
+        smb_result = self.test_smb_connectivity(server)
+        
+        if smb_result["success"]:
+            self.logger.warning(f"RDP failed but SMB successful for {server.hostname}")
+            return {
+                "overall_success": True,
+                "primary_protocol": "smb",
                 "fallback_used": True,
-                "smb_result": smb_result,
-                "rdp_result": rdp_result
+                "rdp_result": rdp_result,
+                "smb_result": smb_result
             }
         
         # Both protocols failed
-        self.logger.error(f"Both SMB and RDP failed for {server.hostname}")
+        self.logger.error(f"Both RDP and SMB failed for {server.hostname}")
         return {
             "overall_success": False,
             "primary_protocol": None,
             "fallback_used": True,
-            "smb_result": smb_result,
-            "rdp_result": rdp_result
+            "rdp_result": rdp_result,
+            "smb_result": smb_result
         }
 
 

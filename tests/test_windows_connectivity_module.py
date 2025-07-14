@@ -104,20 +104,21 @@ class TestWindowsConnectivityTester:
     def test_test_smb_connectivity_success_authenticated(self, mock_port_test, mock_run):
         """Test successful SMB connectivity with authenticated access."""
         mock_port_test.return_value = True
-        
-        # First call fails (anonymous), second call succeeds (authenticated)
+
+        # Multiple calls for different protocols, last one succeeds (authenticated)
         mock_process_fail = MagicMock()
         mock_process_fail.returncode = 1
         mock_process_fail.stdout = ""
         mock_process_fail.stderr = "Access denied"
-        
+
         mock_process_success = MagicMock()
         mock_process_success.returncode = 0
         mock_process_success.stdout = "Sharename      Type      Comment\nC$             Disk      Default share"
         mock_process_success.stderr = ""
-        
-        mock_run.side_effect = [mock_process_fail, mock_process_success]
-        
+
+        # Multiple failed attempts for anonymous/guest, then successful authenticated
+        mock_run.side_effect = [mock_process_fail] * 6 + [mock_process_success]
+
         server = ServerEntry(
             hostname="test-server",
             ip="192.168.1.100",
@@ -134,10 +135,10 @@ class TestWindowsConnectivityTester:
             os="windows",
             tunnel_routes=[]
         )
-        
+
         tester = WindowsConnectivityTester()
         result = tester.test_smb_connectivity(server)
-        
+
         assert result["success"] is True
         assert result["details"]["access_method"] == "authenticated"
     
@@ -174,8 +175,8 @@ class TestWindowsConnectivityTester:
     def test_test_smb_connectivity_timeout(self, mock_port_test, mock_run):
         """Test SMB connectivity with timeout."""
         mock_port_test.return_value = True
-        mock_run.side_effect = subprocess.TimeoutExpired("smbclient", 20)
-        
+        mock_run.side_effect = subprocess.TimeoutExpired("smbclient", 15)
+
         server = ServerEntry(
             hostname="test-server",
             ip="192.168.1.100",
@@ -192,12 +193,12 @@ class TestWindowsConnectivityTester:
             os="windows",
             tunnel_routes=[]
         )
-        
+
         tester = WindowsConnectivityTester()
         result = tester.test_smb_connectivity(server)
-        
+
         assert result["success"] is False
-        assert result["error"] == "SMB enumeration timed out"
+        assert result["error"] == "All SMB authentication methods failed"
     
     @patch('socket.socket')
     @patch.object(WindowsConnectivityTester, 'test_port_connectivity')
@@ -263,57 +264,8 @@ class TestWindowsConnectivityTester:
     
     @patch.object(WindowsConnectivityTester, 'test_rdp_connectivity')
     @patch.object(WindowsConnectivityTester, 'test_smb_connectivity')
-    def test_test_windows_connectivity_smb_success(self, mock_smb, mock_rdp):
-        """Test Windows connectivity with SMB success."""
-        mock_smb.return_value = {
-            "success": True,
-            "protocol": "smb",
-            "port": 445,
-            "details": {"access_method": "anonymous"},
-            "error": None
-        }
-        
-        server = ServerEntry(
-            hostname="test-server",
-            ip="192.168.1.100",
-            dns="test.local",
-            location="test",
-            user="Administrator",
-            password="testpass",
-            ssh_key=None,
-            connection_method="smb",
-            port=445,
-            active=True,
-            grade="important",
-            tool="test",
-            os="windows",
-            tunnel_routes=[]
-        )
-        
-        tester = WindowsConnectivityTester()
-        result = tester.test_windows_connectivity(server)
-        
-        assert result["overall_success"] is True
-        assert result["primary_protocol"] == "smb"
-        assert result["fallback_used"] is False
-        assert result["smb_result"]["success"] is True
-        assert result["rdp_result"] is None
-        
-        # RDP should not be called
-        mock_rdp.assert_not_called()
-    
-    @patch.object(WindowsConnectivityTester, 'test_rdp_connectivity')
-    @patch.object(WindowsConnectivityTester, 'test_smb_connectivity')
-    def test_test_windows_connectivity_rdp_fallback(self, mock_smb, mock_rdp):
-        """Test Windows connectivity with RDP fallback."""
-        mock_smb.return_value = {
-            "success": False,
-            "protocol": "smb",
-            "port": 445,
-            "details": {},
-            "error": "SMB enumeration failed"
-        }
-        
+    def test_test_windows_connectivity_rdp_success(self, mock_smb, mock_rdp):
+        """Test Windows connectivity with RDP success."""
         mock_rdp.return_value = {
             "success": True,
             "protocol": "rdp",
@@ -344,13 +296,62 @@ class TestWindowsConnectivityTester:
         
         assert result["overall_success"] is True
         assert result["primary_protocol"] == "rdp"
-        assert result["fallback_used"] is True
-        assert result["smb_result"]["success"] is False
+        assert result["fallback_used"] is False
         assert result["rdp_result"]["success"] is True
+        assert result["smb_result"] is None
+        
+        # SMB should not be called
+        mock_smb.assert_not_called()
+    
+    @patch.object(WindowsConnectivityTester, 'test_rdp_connectivity')
+    @patch.object(WindowsConnectivityTester, 'test_smb_connectivity')
+    def test_test_windows_connectivity_smb_fallback(self, mock_smb, mock_rdp):
+        """Test Windows connectivity with SMB fallback."""
+        mock_rdp.return_value = {
+            "success": False,
+            "protocol": "rdp",
+            "port": 3389,
+            "details": {},
+            "error": "RDP connection test failed"
+        }
+        
+        mock_smb.return_value = {
+            "success": True,
+            "protocol": "smb",
+            "port": 445,
+            "details": {"access_method": "anonymous"},
+            "error": None
+        }
+        
+        server = ServerEntry(
+            hostname="test-server",
+            ip="192.168.1.100",
+            dns="test.local",
+            location="test",
+            user="Administrator",
+            password="testpass",
+            ssh_key=None,
+            connection_method="smb",
+            port=445,
+            active=True,
+            grade="important",
+            tool="test",
+            os="windows",
+            tunnel_routes=[]
+        )
+        
+        tester = WindowsConnectivityTester()
+        result = tester.test_windows_connectivity(server)
+        
+        assert result["overall_success"] is True
+        assert result["primary_protocol"] == "smb"
+        assert result["fallback_used"] is True
+        assert result["rdp_result"]["success"] is False
+        assert result["smb_result"]["success"] is True
         
         # Both should be called
-        mock_smb.assert_called_once()
         mock_rdp.assert_called_once()
+        mock_smb.assert_called_once()
     
     @patch.object(WindowsConnectivityTester, 'test_rdp_connectivity')
     @patch.object(WindowsConnectivityTester, 'test_smb_connectivity')

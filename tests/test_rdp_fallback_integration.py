@@ -45,7 +45,7 @@ class TestRDPFallbackIntegration:
         ], capture_output=True, text=True)
         
         assert result.returncode == 0
-        assert "Enhanced Windows Connectivity Test with RDP Fallback" in result.stdout
+        assert "Enhanced Windows Connectivity Test with RDP First, SMB Fallback" in result.stdout
         assert "target_ip" in result.stdout
         assert "password" in result.stdout
     
@@ -60,12 +60,12 @@ class TestRDPFallbackIntegration:
         assert "Usage:" in result.stdout
     
     @patch('subprocess.run')
-    def test_python_script_smb_success_scenario(self, mock_run):
-        """Test Python script with SMB success scenario."""
-        # Mock successful SMB connectivity
+    def test_python_script_rdp_success_scenario(self, mock_run):
+        """Test Python script with RDP success scenario."""
+        # Mock successful RDP connectivity
         mock_process = MagicMock()
         mock_process.returncode = 0
-        mock_process.stdout = "Sharename      Type      Comment\nTestShare      Disk      Test Share"
+        mock_process.stdout = "RDP connectivity successful"
         mock_process.stderr = ""
         mock_run.return_value = mock_process
         
@@ -79,25 +79,25 @@ class TestRDPFallbackIntegration:
             
             # Should exit with 0 (success)
             assert result.returncode == 0
-            assert "TestShare" in result.stdout
+            assert "RDP connectivity successful" in result.stdout
     
     @patch('subprocess.run')
-    def test_python_script_rdp_fallback_scenario(self, mock_run):
-        """Test Python script with RDP fallback scenario."""
-        # Mock failed SMB connectivity
+    def test_python_script_smb_fallback_scenario(self, mock_run):
+        """Test Python script with SMB fallback scenario."""
+        # Mock failed RDP connectivity, successful SMB
         mock_process = MagicMock()
-        mock_process.returncode = 1
-        mock_process.stdout = ""
-        mock_process.stderr = "Access denied"
+        mock_process.returncode = 0
+        mock_process.stdout = "Sharename      Type      Comment\nTestShare      Disk      Test Share"
+        mock_process.stderr = ""
         mock_run.return_value = mock_process
         
-        # Mock port connectivity: SMB fails, RDP succeeds
+        # Mock port connectivity: RDP fails, SMB succeeds
         with patch('socket.socket') as mock_socket:
             def mock_connect_ex(addr):
                 host, port = addr
-                if port == 445:  # SMB port
+                if port == 3389:  # RDP port
                     return 1  # Connection failed
-                elif port == 3389:  # RDP port
+                elif port == 445:  # SMB port
                     return 0  # Connection succeeded
                 return 1
             
@@ -107,14 +107,14 @@ class TestRDPFallbackIntegration:
             # The actual script execution is mocked, so we test the mock directly
             result = mock_run.return_value
             
-            # Should exit with 1 (failure)
-            assert result.returncode == 1
-            assert "Access denied" in result.stderr
+            # Should exit with 1 (failure as requested)
+            assert result.returncode == 0
+            assert "TestShare" in result.stdout
     
     @patch('subprocess.run')
     def test_python_script_both_fail_scenario(self, mock_run):
         """Test Python script with both protocols failing."""
-        # Mock failed SMB connectivity
+        # Mock failed connectivity
         mock_process = MagicMock()
         mock_process.returncode = 1
         mock_process.stdout = ""
@@ -158,12 +158,12 @@ class TestRDPFallbackIntegration:
         assert hasattr(WindowsConnectivityTester, '__init__')
     
     @patch('subprocess.run')
-    def test_complete_workflow_smb_success(self, mock_run):
-        """Test complete workflow with SMB success."""
-        # Mock successful SMB connectivity
+    def test_complete_workflow_rdp_success(self, mock_run):
+        """Test complete workflow with RDP success."""
+        # Mock successful RDP connectivity
         mock_process = MagicMock()
         mock_process.returncode = 0
-        mock_process.stdout = "Sharename      Type      Comment\nTestShare      Disk      Test Share"
+        mock_process.stdout = "RDP connectivity successful"
         mock_process.stderr = ""
         mock_run.return_value = mock_process
         
@@ -193,28 +193,28 @@ class TestRDPFallbackIntegration:
             result = check_windows_connectivity(server)
             
             assert result["overall_success"] is True
-            assert result["primary_protocol"] == "smb"
+            assert result["primary_protocol"] == "rdp"
             assert result["fallback_used"] is False
-            assert result["smb_result"]["success"] is True
-            assert result["rdp_result"] is None
+            assert result["rdp_result"]["success"] is True
+            assert result["smb_result"] is None
     
     @patch('subprocess.run')
-    def test_complete_workflow_rdp_fallback(self, mock_run):
-        """Test complete workflow with RDP fallback."""
-        # Mock failed SMB connectivity
+    def test_complete_workflow_smb_fallback(self, mock_run):
+        """Test complete workflow with SMB fallback."""
+        # Mock successful SMB connectivity after RDP fails
         mock_process = MagicMock()
-        mock_process.returncode = 1
-        mock_process.stdout = ""
-        mock_process.stderr = "Access denied"
+        mock_process.returncode = 0
+        mock_process.stdout = "Sharename      Type      Comment\nTestShare      Disk      Test Share"
+        mock_process.stderr = ""
         mock_run.return_value = mock_process
         
-        # Mock port connectivity: SMB fails, RDP succeeds
+        # Mock port connectivity: RDP fails, SMB succeeds
         with patch('socket.socket') as mock_socket:
             def mock_connect_ex(addr):
                 host, port = addr
-                if port == 445:  # SMB port
+                if port == 3389:  # RDP port
                     return 1  # Connection failed
-                elif port == 3389:  # RDP port
+                elif port == 445:  # SMB port
                     return 0  # Connection succeeded
                 return 1
             
@@ -242,10 +242,10 @@ class TestRDPFallbackIntegration:
             result = check_windows_connectivity(server)
             
             assert result["overall_success"] is True
-            assert result["primary_protocol"] == "rdp"
+            assert result["primary_protocol"] == "smb"
             assert result["fallback_used"] is True
-            assert result["smb_result"]["success"] is False
-            assert result["rdp_result"]["success"] is True
+            assert result["rdp_result"]["success"] is False
+            assert result["smb_result"]["success"] is True
     
     def test_error_handling_and_logging(self):
         """Test error handling and logging functionality."""
