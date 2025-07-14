@@ -6,8 +6,9 @@
 TARGET_IP="$1"
 WINDOWS_PASSWORD="$2"
 
+echo "[DEBUG] Using TARGET_IP: $TARGET_IP"
 if [ -z "$TARGET_IP" ]; then
-    echo "Usage: $0 <target_ip> [password]"
+    echo "ERROR: TARGET_IP is not set!"
     exit 1
 fi
 
@@ -17,6 +18,7 @@ echo_and_run() {
     desc="$1"
     cmd="$2"
     echo "[DEBUG] $desc"
+    echo "[DEBUG] Running: $cmd"
     eval "$cmd"
     rc=$?
     if [ $rc -eq 124 ]; then
