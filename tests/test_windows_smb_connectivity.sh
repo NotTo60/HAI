@@ -195,6 +195,65 @@ else
     fi
 fi 
 
+# Try with explicit domain/workgroup
+for user in "Administrator" ".\\Administrator" "WORKGROUP\\Administrator"; do
+  echo "[DEBUG] Attempting SMB enumeration as $user (no password)"
+  echo_and_run "Enumeration as $user (no password)" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"$user\" -N -d 3 2>&1 > /tmp/smb_${user//\\/_}.txt"
+  cat /tmp/smb_${user//\\/_}.txt
+  if grep -q "TestShare\|C\$" /tmp/smb_${user//\\/_}.txt; then
+    echo "[DEBUG] $user (no password) succeeded."
+  else
+    echo "[DEBUG] $user (no password) failed."
+  fi
+done
+
+# Try with password if available
+if [ -n "$WINDOWS_PASSWORD" ] && [ "$WINDOWS_PASSWORD" != "DECRYPTION_FAILED" ] && [ "$WINDOWS_PASSWORD" != "NO_PASSWORD_AVAILABLE" ] && [ "$WINDOWS_PASSWORD" != "NO_INSTANCE_FOUND" ]; then
+  for user in "Administrator" ".\\Administrator" "WORKGROUP\\Administrator"; do
+    echo "[DEBUG] Attempting SMB enumeration as $user (with password)"
+    echo_and_run "Enumeration as $user (with password)" "timeout 20s smbclient -L //${TARGET_IP}/ -U \"$user\"%\"$WINDOWS_PASSWORD\" -d 3 2>&1 > /tmp/smb_${user//\\/_}_pw.txt"
+    cat /tmp/smb_${user//\\/_}_pw.txt
+    if grep -q "TestShare\|C\$" /tmp/smb_${user//\\/_}_pw.txt; then
+      echo "[DEBUG] $user (with password) succeeded."
+    else
+      echo "[DEBUG] $user (with password) failed."
+    fi
+  done
+
+  # Try accessing specific shares
+  for share in "C$" "ADMIN$" "TestShare" "IPC$"; do
+    echo "[DEBUG] Attempting to list $share as Administrator"
+    echo_and_run "List $share" "timeout 20s smbclient //${TARGET_IP}/$share -U \"Administrator%$WINDOWS_PASSWORD\" -c 'ls' -d 3 2>&1 > /tmp/smb_ls_${share}.txt"
+    cat /tmp/smb_ls_${share}.txt
+  done
+
+  # Try file upload/download if C$ is accessible
+  if grep -q "C$" /tmp/smb_Administrator_pw.txt; then
+    echo "[DEBUG] Attempting file upload/download to C$..."
+    echo "Test file from SMB test" > /tmp/smb_testfile.txt
+    echo_and_run "Upload test file" "timeout 20s smbclient //${TARGET_IP}/C$ -U \"Administrator%$WINDOWS_PASSWORD\" -c 'put /tmp/smb_testfile.txt smb_testfile.txt' -d 3 2>&1 > /tmp/smb_upload.txt"
+    echo_and_run "Download test file" "timeout 20s smbclient //${TARGET_IP}/C$ -U \"Administrator%$WINDOWS_PASSWORD\" -c 'get smb_testfile.txt /tmp/smb_testfile_downloaded.txt' -d 3 2>&1 > /tmp/smb_download.txt"
+    if [ -f /tmp/smb_testfile_downloaded.txt ]; then
+      echo "[DEBUG] File upload/download succeeded."
+      diff /tmp/smb_testfile.txt /tmp/smb_testfile_downloaded.txt && echo "[DEBUG] File contents match."
+    else
+      echo "[DEBUG] File upload/download failed."
+    fi
+    rm -f /tmp/smb_testfile.txt /tmp/smb_testfile_downloaded.txt
+  fi
+fi
+
+# Print summary table
+printf '\n%-30s %-10s\n' "Test" "Result"
+printf '%-30s %-10s\n' "------------------------------" "----------"
+for f in /tmp/smb_*.txt; do
+  if grep -q "Sharename" "$f" || grep -q "C$" "$f"; then
+    printf '%-30s %-10s\n' "${f##*/}" "SUCCESS"
+  else
+    printf '%-30s %-10s\n' "${f##*/}" "FAIL"
+  fi
+done
+
 # At the end, print a summary and suggestions if all fail
 echo "[DEBUG] SMB diagnostics complete."
 echo "[DEBUG] Suggestions:"

@@ -211,6 +211,83 @@ if (-not $shareAccessible) {
     }
 }
 
+# Try with explicit domain/workgroup
+$usersToTry = @('Administrator', '.\\Administrator', 'WORKGROUP\\Administrator')
+$shareResults = @{}
+foreach ($user in $usersToTry) {
+    Write-Host "[DEBUG] Attempting SMB access as $user (no password)"
+    try {
+        $cred = New-Object System.Management.Automation.PSCredential($user, (ConvertTo-SecureString '' -AsPlainText -Force))
+        $testPath = "\\$TargetIP\C$"
+        $result = Test-Path $testPath -Credential $cred -ErrorAction SilentlyContinue
+        $shareResults["$user (no password)"] = $result
+        Write-Host "[DEBUG] $user (no password): $result"
+    } catch {
+        $shareResults["$user (no password)"] = $false
+        Write-Host "[DEBUG] $user (no password) exception: $_"
+    }
+}
+
+if ($Password) {
+    foreach ($user in $usersToTry) {
+        Write-Host "[DEBUG] Attempting SMB access as $user (with password)"
+        try {
+            $securePassword = ConvertTo-SecureString $Password -AsPlainText -Force
+            $cred = New-Object System.Management.Automation.PSCredential($user, $securePassword)
+            $testPath = "\\$TargetIP\C$"
+            $result = Test-Path $testPath -Credential $cred -ErrorAction SilentlyContinue
+            $shareResults["$user (with password)"] = $result
+            Write-Host "[DEBUG] $user (with password): $result"
+            # Try file upload/download if access works
+            if ($result) {
+                $localFile = "$env:TEMP\smb_testfile.txt"
+                $remoteFile = "\\$TargetIP\C$\smb_testfile.txt"
+                Set-Content -Path $localFile -Value "Test file from SMB test"
+                try {
+                    Copy-Item -Path $localFile -Destination $remoteFile -Credential $cred -ErrorAction Stop
+                    Write-Host "[DEBUG] File upload succeeded."
+                    $downloaded = "$env:TEMP\smb_testfile_downloaded.txt"
+                    Copy-Item -Path $remoteFile -Destination $downloaded -Credential $cred -ErrorAction Stop
+                    Write-Host "[DEBUG] File download succeeded."
+                    if ((Get-Content $localFile) -eq (Get-Content $downloaded)) {
+                        Write-Host "[DEBUG] File contents match."
+                    } else {
+                        Write-Host "[DEBUG] File contents do not match."
+                    }
+                    Remove-Item $localFile, $downloaded, $remoteFile -ErrorAction SilentlyContinue
+                } catch {
+                    Write-Host "[DEBUG] File upload/download failed: $_"
+                }
+            }
+        } catch {
+            $shareResults["$user (with password)"] = $false
+            Write-Host "[DEBUG] $user (with password) exception: $_"
+        }
+    }
+}
+
+# Try specific shares
+$sharesToTry = @('C$', 'ADMIN$', 'TestShare', 'IPC$')
+foreach ($share in $sharesToTry) {
+    $path = "\\$TargetIP\$share"
+    try {
+        $result = Test-Path $path -ErrorAction SilentlyContinue
+        $shareResults["Anonymous $share"] = $result
+        Write-Host "[DEBUG] Anonymous $share: $result"
+    } catch {
+        $shareResults["Anonymous $share"] = $false
+        Write-Host "[DEBUG] Anonymous $share exception: $_"
+    }
+}
+
+# Print summary table
+Write-Host "\nTest Summary:"
+Write-Host "------------------------------  ----------"
+foreach ($key in $shareResults.Keys) {
+    $status = if ($shareResults[$key]) { 'SUCCESS' } else { 'FAIL' }
+    Write-Host ("{0,-30} {1,-10}" -f $key, $status)
+}
+
 if ($shareAccessible) {
     Write-Host "WINDOWS SMB CONNECTIVITY OK"
     exit 0
