@@ -769,3 +769,46 @@ MIT License
 - Use feature branches and submit PRs for review.
 - Ensure all pre-commit hooks pass before pushing.
 - Do not commit real secrets or credentials. 
+
+## Integration Test Setup (.env)
+
+Some integration tests require real server credentials and will be skipped unless the following environment variables are set. The recommended way is to create a `.env` file in your project root:
+
+```
+# Linux SSH test server
+TEST_LINUX_USER=your_ssh_user
+TEST_LINUX_SSH_KEY=/path/to/your/id_rsa
+TEST_LINUX_HOST=your.linux.server.ip
+TEST_LINUX_DNS=your.linux.server.dns
+TEST_LINUX_LOCATION=your-location
+TEST_LINUX_PORT=22
+
+# Windows SMB/WMI test server
+TEST_WINDOWS_USER=your_windows_user
+TEST_WINDOWS_HOST=your.windows.server.ip
+TEST_WINDOWS_DNS=your.windows.server.dns
+TEST_WINDOWS_LOCATION=your-location
+TEST_WINDOWS_PORT=445
+# Password is set by Terraform to TemporaryPassword123!
+
+# FTP test server
+TEST_FTP_HOST=your.ftp.server.ip
+TEST_FTP_USER=your_ftp_user
+TEST_FTP_PASS=your_ftp_password
+TEST_FTP_PORT=21
+```
+
+1. Copy the above to a file named `.env` in your project root.
+2. Fill in real, reachable test server credentials.
+3. The test runner will automatically load these variables using `python-dotenv`.
+
+### Running Integration Tests
+
+Activate your virtual environment and run:
+
+```sh
+source .venv/bin/activate
+python -m pytest tests/ -v
+```
+
+If any integration tests fail, check the error output for details (connectivity, authentication, or server config issues are most common). If you need help troubleshooting, provide the error output and I can assist further. 

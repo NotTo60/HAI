@@ -1,6 +1,14 @@
 import os
 import tempfile
 import pytest
+
+# Load environment variables from .env if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from core.connection_manager import connect_with_fallback
 from core.server_schema import ServerEntry, TunnelRoute, TunnelHop
 from core.file_transfer import upload_file, download_file
