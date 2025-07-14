@@ -1,8 +1,8 @@
 import paramiko
 
-from connectors.base_connector import BaseConnector
-from utils.logger import get_logger
-from utils.constants import DEFAULT_SSH_PORT, DEFAULT_TIMEOUT
+from .base_connector import BaseConnector
+from ..utils.logger import get_logger
+from ..utils.constants import DEFAULT_SSH_PORT, DEFAULT_TIMEOUT
 
 logger = get_logger("ssh_connector")
 

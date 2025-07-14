@@ -6,9 +6,9 @@ enabling upload, download, and directory listing.
 """
 
 from typing import Optional, Dict, Any, List
-from connectors.base_connector import BaseConnector
-from utils.logger import get_logger
-from utils.constants import DEFAULT_TIMEOUT
+from .base_connector import BaseConnector
+from ..utils.logger import get_logger
+from ..utils.constants import DEFAULT_TIMEOUT
 
 logger = get_logger("ftp_connector")
 

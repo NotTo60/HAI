@@ -1,6 +1,6 @@
 from IPython.core.magic import line_magic, Magics, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from utils.logger import get_logger
+from ..utils.logger import get_logger
 
 logger = get_logger("route_magics")
 servers_cache = {}  # Populate externally

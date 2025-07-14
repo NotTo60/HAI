@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel
-from utils.constants import (
+from ..utils.constants import (
     SUPPORTED_CONNECTION_METHODS, SUPPORTED_FILE_TRANSFER_PROTOCOLS, SUPPORTED_OS_TYPES, SERVER_GRADES
 )
 

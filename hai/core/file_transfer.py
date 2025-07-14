@@ -5,9 +5,9 @@ import tempfile
 import subprocess
 import shlex
 
-from utils.logger import get_logger
-from utils.md5sum import md5sum
-from utils.constants import (
+from ..utils.logger import get_logger
+from ..utils.md5sum import md5sum
+from ..utils.constants import (
     DEFAULT_COMPRESSION, SUPPORTED_COMPRESSION_FORMATS
 )
 
@@ -188,7 +188,7 @@ def upload_file(conn, local_path, remote_path, compress=DEFAULT_COMPRESSION, use
         
         # Perform MD5 verification
         try:
-            from utils.md5sum import md5sum
+            from ..utils.md5sum import md5sum
             local_md5 = md5sum(path_to_send)
             logger.info(f"Local file MD5: {local_md5}")
             

@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from utils.constants import (
+from .constants import (
     LOGS_DIR, LOG_FORMAT, LOG_DATE_FORMAT,
     DEFAULT_LOG_LEVEL, ENHANCED_LOG_BUFFER_SIZE, MAX_OUTPUT_LENGTH, MAX_RESULT_LENGTH
 )

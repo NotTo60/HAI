@@ -1,6 +1,6 @@
-from core.tunnel_builder import TunnelBuilder
-from utils.logger import get_logger
-from utils.constants import ERROR_CODES
+from .tunnel_builder import TunnelBuilder
+from ..utils.logger import get_logger
+from ..utils.constants import ERROR_CODES
 
 logger = get_logger("connection_manager")
 

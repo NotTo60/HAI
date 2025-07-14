@@ -6,10 +6,10 @@ from typing import Any, Callable, List, Optional
 from tqdm import tqdm
 import os
 
-from core.server_schema import ServerEntry
-from utils.constants import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, PROGRESS_BAR_WIDTH
-from utils.enhanced_logger import get_enhanced_logger, get_server_logger
-from utils.state_manager import get_state_manager, save_current_state, load_saved_state
+from .server_schema import ServerEntry
+from ..utils.constants import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT, PROGRESS_BAR_WIDTH
+from ..utils.enhanced_logger import get_enhanced_logger, get_server_logger
+from ..utils.state_manager import get_state_manager, save_current_state, load_saved_state
 
 logger = get_enhanced_logger("threaded_operations")
 
@@ -314,8 +314,8 @@ class ThreadedOperations:
     def _command_operation(self, server: ServerEntry, command: str, timeout: int) -> OperationResult:
         """Execute a single command on a server"""
         import time
-        from core.connection_manager import connect_with_fallback
-        from core.command_runner import run_command
+        from .connection_manager import connect_with_fallback
+        from .command_runner import run_command
         start_time = time.time()
         server_logger = get_server_logger(server.hostname, server.ip)
         try:
@@ -344,8 +344,8 @@ class ThreadedOperations:
     def _commands_operation(self, server: ServerEntry, commands: List[str], timeout: int) -> OperationResult:
         """Execute multiple commands on a server"""
         import time
-        from core.connection_manager import connect_with_fallback
-        from core.command_runner import run_commands
+        from .connection_manager import connect_with_fallback
+        from .command_runner import run_commands
         
         start_time = time.time()
         
@@ -376,8 +376,8 @@ class ThreadedOperations:
     def _upload_operation(self, server: ServerEntry, local_path: str, remote_path: str, compress: bool, timeout: int) -> OperationResult:
         """Upload a file to a server"""
         import time
-        from core.connection_manager import connect_with_fallback
-        from core.file_transfer import upload_file
+        from .connection_manager import connect_with_fallback
+        from .file_transfer import upload_file
         start_time = time.time()
         server_logger = get_server_logger(server.hostname, server.ip)
         try:
@@ -427,8 +427,8 @@ class ThreadedOperations:
     def _download_operation(self, server: ServerEntry, remote_path: str, local_path: str, decompress: bool, timeout: int) -> OperationResult:
         """Download a file from a server"""
         import time
-        from core.connection_manager import connect_with_fallback
-        from core.file_transfer import download_file
+        from .connection_manager import connect_with_fallback
+        from .file_transfer import download_file
         start_time = time.time()
         server_logger = get_server_logger(server.hostname, server.ip)
         try:
@@ -478,7 +478,7 @@ class ThreadedOperations:
     def _custom_operation(self, server: ServerEntry, operation_func: Callable, operation_args: tuple, operation_kwargs: dict, timeout: int) -> OperationResult:
         """Execute a custom operation on a server"""
         import time
-        from core.connection_manager import connect_with_fallback
+        from .connection_manager import connect_with_fallback
         
         start_time = time.time()
         

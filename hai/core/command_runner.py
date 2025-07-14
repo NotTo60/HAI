@@ -1,5 +1,5 @@
-from utils.logger import get_logger
-from utils.constants import DEFAULT_TIMEOUT
+from ..utils.logger import get_logger
+from ..utils.constants import DEFAULT_TIMEOUT
 
 logger = get_logger("command_runner")
 

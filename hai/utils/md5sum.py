@@ -1,5 +1,5 @@
 import hashlib
-from utils.constants import DEFAULT_CHUNK_SIZE
+from .constants import DEFAULT_CHUNK_SIZE
 
 def md5sum(filename):
     """Compute MD5 checksum of a file."""

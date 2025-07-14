@@ -1,8 +1,8 @@
-from connectors.impacket_wrapper import ImpacketWrapper
-from connectors.smb_connector import SMBConnector
-from connectors.ssh_connector import SSHConnector
-from utils.logger import get_logger
-from utils.constants import (
+from ..connectors.impacket_wrapper import ImpacketWrapper
+from ..connectors.smb_connector import SMBConnector
+from ..connectors.ssh_connector import SSHConnector
+from ..utils.logger import get_logger
+from ..utils.constants import (
     DEFAULT_SSH_PORT, DEFAULT_TIMEOUT
 )
 
@@ -42,7 +42,7 @@ class TunnelBuilder:
                 client_id=config.get("client_id"),
             )
         elif method == "ftp":
-            from connectors.ftp_connector import FTPConnector
+            from ..connectors.ftp_connector import FTPConnector
             conn = FTPConnector(
                 host=server.ip,
                 user=server.user,

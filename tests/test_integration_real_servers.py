@@ -9,9 +9,9 @@ try:
 except ImportError:
     pass
 
-from core.connection_manager import connect_with_fallback
-from core.server_schema import ServerEntry, TunnelRoute, TunnelHop
-from core.file_transfer import upload_file, download_file
+from hai.core.connection_manager import connect_with_fallback
+from hai.core.server_schema import ServerEntry, TunnelRoute, TunnelHop
+from hai.core.file_transfer import upload_file, download_file
 
 # Helper to build a minimal ServerEntry for each protocol
 def build_server_entry(prefix, method, os_type):

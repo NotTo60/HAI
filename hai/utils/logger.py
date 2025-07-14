@@ -1,6 +1,6 @@
 import logging
 import os
-from utils.constants import LOG_FORMAT, DEFAULT_LOG_LEVEL, LOGS_DIR
+from .constants import LOG_FORMAT, DEFAULT_LOG_LEVEL, LOGS_DIR
 from logging.handlers import RotatingFileHandler
 
 def get_logger(name, level=DEFAULT_LOG_LEVEL):

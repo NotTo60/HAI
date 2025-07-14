@@ -16,6 +16,7 @@ setup(
         "cryptography>=3.0",
         "bcrypt>=3.0",
         "pynacl>=1.0",
+        "python-dotenv>=1.0.0",
     ],
     python_requires=">=3.8",
     description="HAI - Host Access Infrastructure",

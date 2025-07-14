@@ -18,16 +18,16 @@ import json
 from pathlib import Path
 
 # Import HAI components
-from core.server_schema import ServerEntry, TunnelRoute, TunnelHop
-from core.threaded_operations import (
+from hai.core.server_schema import ServerEntry, TunnelRoute, TunnelHop
+from hai.core.threaded_operations import (
     run_command_on_servers,
     upload_file_to_servers,
     download_file_from_servers
 )
-from utils.enhanced_logger import get_enhanced_logger
-from utils.state_manager import get_state_manager, save_current_state
-from utils.constants import *
-from connectors import SSHConnector, SMBConnector, ImpacketWrapper, FTPConnector
+from hai.utils.enhanced_logger import get_enhanced_logger
+from hai.utils.state_manager import get_state_manager, save_current_state
+from hai.utils.constants import *
+from hai.connectors import SSHConnector, SMBConnector, ImpacketWrapper, FTPConnector
 
 class TestConnectorImplementations:
     """Test all connector implementations."""
@@ -139,7 +139,7 @@ class TestEnhancedLogging:
     
     def test_performance_logging(self):
         """Test performance logging works."""
-        from utils.enhanced_logger import log_performance
+        from hai.utils.enhanced_logger import log_performance
         
         # Test performance logging
         log_performance("test_operation", 1.5, 3)
@@ -150,7 +150,7 @@ class TestFileTransfer:
     
     def test_md5_verification(self):
         """Test MD5 verification functionality."""
-        from utils.md5sum import md5sum
+        from hai.utils.md5sum import md5sum
         
         # Create a test file
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
@@ -176,8 +176,8 @@ class TestThreadedOperations:
     
     def test_batch_result_creation(self):
         """Test BatchResult can be created."""
-        from core.threaded_operations import BatchResult, OperationResult
-        from core.server_schema import ServerEntry
+        from hai.core.threaded_operations import BatchResult, OperationResult
+        from hai.core.server_schema import ServerEntry
         
         # Create test server
         server = ServerEntry(
@@ -303,7 +303,7 @@ class TestIntegration:
     def test_import_all_modules(self):
         """Test all modules can be imported."""
         # Test core imports
-        from core import (
+        from hai.core import (
             connect_with_fallback,
             upload_file,
             download_file,
@@ -312,14 +312,14 @@ class TestIntegration:
         )
         
         # Test utils imports
-        from utils import (
+        from hai.utils import (
             get_logger,
             get_enhanced_logger,
             get_state_manager
         )
         
         # Test connectors imports
-        from connectors import (
+        from hai.connectors import (
             SSHConnector,
             SMBConnector,
             ImpacketWrapper,

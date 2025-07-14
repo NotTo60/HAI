@@ -6,9 +6,9 @@ Windows operations like SMB, WMI, and remote command execution.
 """
 
 from typing import Optional, Dict, Any
-from connectors.base_connector import BaseConnector
-from utils.logger import get_logger
-from utils.constants import DEFAULT_TIMEOUT
+from .base_connector import BaseConnector
+from ..utils.logger import get_logger
+from ..utils.constants import DEFAULT_TIMEOUT
 
 logger = get_logger("impacket_wrapper")
 
