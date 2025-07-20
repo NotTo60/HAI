@@ -47,83 +47,40 @@ jobs:
         run: |
           echo "=== DEBUG WINDOWS ADMINISTRATOR PASSWORD ==="
           
-          # Get the Windows instance ID
+          # Get the Windows instance ID and debug info
           WINDOWS_INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=tag:Name,Values=hai-windows-ci" "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].InstanceId' \
             --output text 2>/dev/null || echo "")
-          
           if [ -n "$WINDOWS_INSTANCE_ID" ]; then
             echo "Found Windows instance: $WINDOWS_INSTANCE_ID"
-            
-            # Try to retrieve password data with retries
-            echo "Waiting for password data to become available..."
-            PASSWORD_DATA=""
-            MAX_ATTEMPTS=5
-            ATTEMPT=1
-            
-            while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ -z "$PASSWORD_DATA" ]; do
-              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Retrieving encrypted password data..."
-              PASSWORD_DATA=$(aws ec2 get-password-data \
-                --instance-id $WINDOWS_INSTANCE_ID \
-                --query 'PasswordData' \
-                --output text 2>/dev/null || echo "")
-              
-              if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
-                echo "✅ Encrypted password data retrieved successfully on attempt $ATTEMPT"
-                break
-              else
-                echo "❌ No password data available yet (attempt $ATTEMPT/$MAX_ATTEMPTS)"
-                if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-                  echo "Waiting 30 seconds before next attempt..."
-                  sleep 30
-                fi
-              fi
-              ATTEMPT=$((ATTEMPT + 1))
-            done
-            
-            if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
-              # Decrypt the password using the private key
-              echo "Decrypting password using private key..."
-              WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa 2>/dev/null | tr -d '\0' || echo "DECRYPTION_FAILED")
-              
-              if [ "$WIN_AUTH_DATA" != "DECRYPTION_FAILED" ]; then
-                echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $WIN_AUTH_DATA"
-                echo "Instance ID: $WINDOWS_INSTANCE_ID"
-                echo "IP Address: ${{ inputs.windows_ip }}"
-                
-                # Password validity checks (length, complexity, whitespace, printable)
-                if [[ "$WIN_AUTH_DATA" =~ [^[:print:]] || ${#WIN_AUTH_DATA} -lt 12 ]]; then
-                  echo "❌ Decrypted password is not valid (non-printable or too short)"
-                  exit 1
-                fi
-                if ! [[ "$WIN_AUTH_DATA" =~ [A-Z] ]]; then
-                  echo "❌ Password does not contain an uppercase letter"; exit 1; fi
-                if ! [[ "$WIN_AUTH_DATA" =~ [a-z] ]]; then
-                  echo "❌ Password does not contain a lowercase letter"; exit 1; fi
-                if ! [[ "$WIN_AUTH_DATA" =~ [0-9] ]]; then
-                  echo "❌ Password does not contain a digit"; exit 1; fi
-                if ! [[ "$WIN_AUTH_DATA" =~ [^a-zA-Z0-9] ]]; then
-                  echo "❌ Password does not contain a special character"; exit 1; fi
-                if [[ "$WIN_AUTH_DATA" =~ [[:space:]] ]]; then
-                  echo "❌ Password contains whitespace"; exit 1; fi
-                echo "✅ Password format looks valid"
-
-                # Store password for use in RDP and SMB tests
-                echo "$WIN_AUTH_DATA" > temp_auth.txt  # pragma: allowlist secret
-                echo "Password saved to temp_auth.txt for authentication tests"
-              else
-                echo "❌ Failed to decrypt password"
-                echo "DECRYPTION_FAILED" > temp_auth.txt
-              fi
-            else
-              echo "❌ Password data still not available after $MAX_ATTEMPTS attempts."
-              echo "   This might indicate an issue with the Windows instance setup."
-              echo "NO_PASSWORD_AVAILABLE" > temp_auth.txt
+            # Print instance launch time and key pair name
+            INSTANCE_LAUNCH_TIME=$(aws ec2 describe-instances --instance-ids $WINDOWS_INSTANCE_ID --query 'Reservations[0].Instances[0].LaunchTime' --output text)
+            INSTANCE_KEY_NAME=$(aws ec2 describe-instances --instance-ids $WINDOWS_INSTANCE_ID --query 'Reservations[0].Instances[0].KeyName' --output text)
+            echo "Instance Launch Time: $INSTANCE_LAUNCH_TIME"
+            echo "Instance Key Pair Name: $INSTANCE_KEY_NAME"
+            # Print current UTC time for comparison
+            echo "Current UTC Time: $(date -u)"
+            # Print private key fingerprint
+            echo "Private key fingerprint (windows_rsa):"
+            ssh-keygen -lf windows_rsa || echo "(ssh-keygen not available or key missing)"
+            # Print first and last lines of key for sanity check
+            echo "Key file first line: $(head -1 windows_rsa)"
+            echo "Key file last line: $(tail -1 windows_rsa)"
+            # Check if instance is new (launched within last 30 minutes)
+            LAUNCH_EPOCH=$(date -d "$INSTANCE_LAUNCH_TIME" +%s)
+            NOW_EPOCH=$(date -u +%s)
+            AGE_MINUTES=$(( (NOW_EPOCH - LAUNCH_EPOCH) / 60 ))
+            echo "Instance age (minutes): $AGE_MINUTES"
+            if [ $AGE_MINUTES -gt 30 ]; then
+              echo "❌ Instance is older than 30 minutes. Please ensure a fresh VM is used."
+              exit 1
             fi
-          else
-            echo "❌ Windows instance not found or not running"
-            echo "NO_INSTANCE_FOUND" > temp_auth.txt
+            # Check key pair name matches expected
+            if [ "$INSTANCE_KEY_NAME" != "hai-ci-windows-key" ]; then
+              echo "❌ Instance key pair name does not match expected (hai-ci-windows-key)"
+              exit 1
+            fi
           fi
           
           echo "=== END PASSWORD DEBUG ==="
