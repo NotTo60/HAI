@@ -92,32 +92,26 @@ jobs:
                 echo "Instance ID: $WINDOWS_INSTANCE_ID"
                 echo "IP Address: ${{ inputs.windows_ip }}"
                 
-                # Password validity check
-                if [[ "$WIN_AUTH_DATA" =~ [^[:print:]] || ${#WIN_AUTH_DATA} -lt 8 ]]; then
+                # Password validity checks (length, complexity, whitespace, printable)
+                if [[ "$WIN_AUTH_DATA" =~ [^[:print:]] || ${#WIN_AUTH_DATA} -lt 12 ]]; then
                   echo "❌ Decrypted password is not valid (non-printable or too short)"
                   exit 1
-                else
-                  echo "✅ Password format looks valid"
                 fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [A-Z] ]]; then
+                  echo "❌ Password does not contain an uppercase letter"; exit 1; fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [a-z] ]]; then
+                  echo "❌ Password does not contain a lowercase letter"; exit 1; fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [0-9] ]]; then
+                  echo "❌ Password does not contain a digit"; exit 1; fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [^a-zA-Z0-9] ]]; then
+                  echo "❌ Password does not contain a special character"; exit 1; fi
+                if [[ "$WIN_AUTH_DATA" =~ [[:space:]] ]]; then
+                  echo "❌ Password contains whitespace"; exit 1; fi
+                echo "✅ Password format looks valid"
 
-                # Test RDP authentication with password
-                echo "Testing RDP authentication with xfreerdp..."
-                if command -v xfreerdp >/dev/null 2>&1; then
-                  xfreerdp /v:${{ inputs.windows_ip }} /u:Administrator /p:"$WIN_AUTH_DATA" /cert:ignore /sec:nla +auth-only
-                  RDP_RESULT=$?
-                  if [ $RDP_RESULT -eq 0 ]; then
-                    echo "✅ RDP authentication succeeded with decrypted password"
-                  else
-                    echo "❌ RDP authentication failed with decrypted password"
-                    exit 1
-                  fi
-                else
-                  echo "⚠️  xfreerdp not installed, skipping RDP authentication test"
-                fi
-
-                # Store password for use in SMB tests
+                # Store password for use in RDP and SMB tests
                 echo "$WIN_AUTH_DATA" > temp_auth.txt  # pragma: allowlist secret
-                echo "Password saved to temp_auth.txt for SMB authentication"
+                echo "Password saved to temp_auth.txt for authentication tests"
               else
                 echo "❌ Failed to decrypt password"
                 echo "DECRYPTION_FAILED" > temp_auth.txt
@@ -149,8 +143,37 @@ jobs:
             echo "✅ RDP port 3389 is open and accessible"
           else
             echo "❌ RDP port 3389 is not accessible"
+            exit 1
           fi
-          
+
+          # Install xfreerdp if not present
+          if ! command -v xfreerdp >/dev/null 2>&1; then
+            echo "Installing xfreerdp..."
+            sudo apt-get update -qq && sudo apt-get install -y freerdp2-x11
+          fi
+
+          # Load password for RDP authentication test
+          if [ -f temp_auth.txt ]; then
+            WIN_AUTH_DATA=$(cat temp_auth.txt)
+            if [ "$WIN_AUTH_DATA" != "DECRYPTION_FAILED" ] && [ "$WIN_AUTH_DATA" != "NO_PASSWORD_AVAILABLE" ] && [ "$WIN_AUTH_DATA" != "NO_INSTANCE_FOUND" ]; then
+              echo "Testing RDP authentication with xfreerdp (+auth-only)..."
+              xfreerdp /v:${{ inputs.windows_ip }} /u:Administrator /p:"$WIN_AUTH_DATA" /cert:ignore /sec:nla +auth-only
+              RDP_RESULT=$?
+              if [ $RDP_RESULT -eq 0 ]; then
+                echo "✅ RDP authentication succeeded with decrypted password"
+              else
+                echo "❌ RDP authentication failed with decrypted password"
+                exit 1
+              fi
+            else
+              echo "No valid password available for RDP authentication test"
+              exit 1
+            fi
+          else
+            echo "Password file not found for RDP authentication test"
+            exit 1
+          fi
+
           echo "RDP connection command (for manual testing):"
           echo "xfreerdp /v:${{ inputs.windows_ip }} /u:Administrator /p:\"<password_from_above>\" /cert:ignore"
           echo "=== END RDP TEST ==="
