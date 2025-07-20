@@ -81,9 +81,89 @@ jobs:
               echo "❌ Instance key pair name does not match expected (hai-ci-windows-key)"
               exit 1
             fi
+            
+            # Try to retrieve password data with retries
+            echo "Waiting for password data to become available..."
+            PASSWORD_DATA=""
+            MAX_ATTEMPTS=10
+            ATTEMPT=1
+            
+            while [ $ATTEMPT -le $MAX_ATTEMPTS ] && [ -z "$PASSWORD_DATA" ]; do
+              echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Retrieving encrypted password data..."
+              PASSWORD_DATA=$(aws ec2 get-password-data \
+                --instance-id $WINDOWS_INSTANCE_ID \
+                --query 'PasswordData' \
+                --output text 2>/dev/null || echo "")
+              
+              if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
+                echo "✅ Encrypted password data retrieved successfully on attempt $ATTEMPT"
+                break
+              else
+                echo "❌ No password data available yet (attempt $ATTEMPT/$MAX_ATTEMPTS)"
+                if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                  echo "Waiting 30 seconds before next attempt..."
+                  sleep 30
+                fi
+              fi
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+            
+            if [ -n "$PASSWORD_DATA" ] && [ "$PASSWORD_DATA" != "None" ]; then
+              # Decrypt the password using the private key
+              echo "Decrypting password using private key..."
+              # First, ensure the key is in the correct format for OpenSSL
+              echo "Converting key format for OpenSSL compatibility..."
+              openssl rsa -in windows_rsa -out windows_rsa_openssl -outform PEM 2>/dev/null || echo "Key conversion failed"
+              # Try decryption with the converted key
+              WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa_openssl 2>/dev/null || echo "DECRYPTION_FAILED")
+              # If that fails, try with the original key
+              if [ "$WIN_AUTH_DATA" = "DECRYPTION_FAILED" ]; then
+                echo "Trying with original key format..."
+                WIN_AUTH_DATA=$(echo "$PASSWORD_DATA" | base64 -d | openssl rsautl -decrypt -inkey windows_rsa 2>/dev/null || echo "DECRYPTION_FAILED")
+              fi
+              
+              if [ "$WIN_AUTH_DATA" != "DECRYPTION_FAILED" ]; then
+                echo "✅ WINDOWS ADMINISTRATOR PASSWORD: $WIN_AUTH_DATA"
+                echo "Instance ID: $WINDOWS_INSTANCE_ID"
+                echo "IP Address: ${{ inputs.windows_ip }}"
+                
+                # Password validity checks (length, complexity, whitespace, printable)
+                if [[ "$WIN_AUTH_DATA" =~ [^[:print:]] || ${#WIN_AUTH_DATA} -lt 12 ]]; then
+                  echo "❌ Decrypted password is not valid (non-printable or too short)"
+                  exit 1
+                fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [A-Z] ]]; then
+                  echo "❌ Password does not contain an uppercase letter"; exit 1; fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [a-z] ]]; then
+                  echo "❌ Password does not contain a lowercase letter"; exit 1; fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [0-9] ]]; then
+                  echo "❌ Password does not contain a digit"; exit 1; fi
+                if ! [[ "$WIN_AUTH_DATA" =~ [^a-zA-Z0-9] ]]; then
+                  echo "❌ Password does not contain a special character"; exit 1; fi
+                if [[ "$WIN_AUTH_DATA" =~ [[:space:]] ]]; then
+                  echo "❌ Password contains whitespace"; exit 1; fi
+                echo "✅ Password format looks valid"
+
+                # Store password for use in RDP and SMB tests
+                echo "$WIN_AUTH_DATA" > temp_auth.txt  # pragma: allowlist secret
+                echo "Password saved to temp_auth.txt for authentication tests"
+              else
+                echo "❌ Failed to decrypt password. This might be because:"
+                echo "   - Private key doesn't match the one used to encrypt the password"
+                echo "   - Password data format is different than expected"
+                echo "DECRYPTION_FAILED" > temp_auth.txt
+              fi
+            else
+              echo "❌ Password data still not available after $MAX_ATTEMPTS attempts."
+              echo "   This might indicate an issue with the Windows instance setup."
+              echo "NO_PASSWORD_AVAILABLE" > temp_auth.txt
+            fi
+          else
+            echo "❌ Windows instance not found or not running"
+            echo "NO_INSTANCE_FOUND" > temp_auth.txt
           fi
           
-          echo "=== END PASSWORD DEBUG ==="
+          echo "=== END PASSWORD RETRIEVAL ==="
 
       - name: Test SSH to Linux
         working-directory: ${{ github.workspace }}
