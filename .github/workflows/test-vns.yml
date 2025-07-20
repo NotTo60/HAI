@@ -92,6 +92,29 @@ jobs:
                 echo "Instance ID: $WINDOWS_INSTANCE_ID"
                 echo "IP Address: ${{ inputs.windows_ip }}"
                 
+                # Password validity check
+                if [[ "$WIN_AUTH_DATA" =~ [^[:print:]] || ${#WIN_AUTH_DATA} -lt 8 ]]; then
+                  echo "❌ Decrypted password is not valid (non-printable or too short)"
+                  exit 1
+                else
+                  echo "✅ Password format looks valid"
+                fi
+
+                # Test RDP authentication with password
+                echo "Testing RDP authentication with xfreerdp..."
+                if command -v xfreerdp >/dev/null 2>&1; then
+                  xfreerdp /v:${{ inputs.windows_ip }} /u:Administrator /p:"$WIN_AUTH_DATA" /cert:ignore /sec:nla +auth-only
+                  RDP_RESULT=$?
+                  if [ $RDP_RESULT -eq 0 ]; then
+                    echo "✅ RDP authentication succeeded with decrypted password"
+                  else
+                    echo "❌ RDP authentication failed with decrypted password"
+                    exit 1
+                  fi
+                else
+                  echo "⚠️  xfreerdp not installed, skipping RDP authentication test"
+                fi
+
                 # Store password for use in SMB tests
                 echo "$WIN_AUTH_DATA" > temp_auth.txt  # pragma: allowlist secret
                 echo "Password saved to temp_auth.txt for SMB authentication"
