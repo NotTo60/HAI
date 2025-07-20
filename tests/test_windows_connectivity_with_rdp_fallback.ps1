@@ -155,47 +155,47 @@ function Test-SMBConnectivity {
 # Main test execution
 Write-Host "Starting connectivity tests..."
 
-# Test SMB first
-if (Test-SMBConnectivity) {
+# Test RDP first
+if (Test-RDPConnectivity) {
     Write-Host ""
     Write-Host "=== FINAL RESULT ==="
-    Write-Host "✅ SMB CONNECTIVITY SUCCESSFUL"
-    Write-Host "Windows SMB connectivity is working properly"
-    Write-Host "No need to test RDP - SMB is sufficient"
+    Write-Host "✅ RDP CONNECTIVITY SUCCESSFUL"
+    Write-Host "Windows RDP connectivity is working properly"
+    Write-Host "No need to test SMB - RDP is sufficient"
     exit 0
 } else {
     Write-Host ""
-    Write-Host "❌ SMB CONNECTIVITY FAILED"
-    Write-Host "Falling back to RDP connectivity test..."
+    Write-Host "❌ RDP CONNECTIVITY FAILED"
+    Write-Host "Falling back to SMB connectivity test..."
     
-    # Test RDP as fallback
-    if (Test-RDPConnectivity) {
+    # Test SMB as fallback
+    if (Test-SMBConnectivity) {
         Write-Host ""
         Write-Host "=== FINAL RESULT ==="
-        Write-Host "⚠️  SMB FAILED but RDP SUCCESSFUL"
-        Write-Host "SMB connectivity failed, but RDP connectivity is working"
-        Write-Host "Windows instance is reachable via RDP (port 3389)"
+        Write-Host "⚠️  RDP FAILED but SMB SUCCESSFUL"
+        Write-Host "RDP connectivity failed, but SMB connectivity is working"
+        Write-Host "Windows instance is reachable via SMB (port 445)"
         Write-Host ""
-        Write-Host "RDP connection command (for manual testing):"
-        Write-Host "mstsc /v:$TargetIP /u:Administrator /p:`"<password>`""
+        Write-Host "SMB connection command (for manual testing):"
+        Write-Host "smbclient //$TargetIP/TestShare -U Administrator"
         Write-Host ""
-        Write-Host "Troubleshooting SMB issues:"
-        Write-Host "- Check Windows Firewall rules for SMB (port 445)"
-        Write-Host "- Verify SMB service is running on Windows"
-        Write-Host "- Ensure TestShare is created with proper permissions"
-        Write-Host "- Check Administrator password and account status"
-        Write-Host "- Verify SMB protocol versions are enabled"
+        Write-Host "Troubleshooting RDP issues:"
+        Write-Host "- Check Windows Firewall rules for RDP (port 3389)"
+        Write-Host "- Verify Remote Desktop service is running on Windows"
+        Write-Host "- Ensure Remote Desktop is enabled in System Properties"
+        Write-Host "- Check if RDP is allowed in Windows Firewall"
+        Write-Host "- Verify the instance security group allows port 3389"
         exit 1  # Exit with error as requested
     } else {
         Write-Host ""
         Write-Host "=== FINAL RESULT ==="
-        Write-Host "❌ BOTH SMB AND RDP CONNECTIVITY FAILED"
+        Write-Host "❌ BOTH RDP AND SMB CONNECTIVITY FAILED"
         Write-Host "Windows instance is not reachable via either protocol"
         Write-Host ""
         Write-Host "Debugging information:"
         Write-Host "- Target IP: $TargetIP"
-        Write-Host "- SMB port 445: Not accessible"
         Write-Host "- RDP port 3389: Not accessible"
+        Write-Host "- SMB port 445: Not accessible"
         Write-Host ""
         Write-Host "Possible issues:"
         Write-Host "- Windows instance may not be running"

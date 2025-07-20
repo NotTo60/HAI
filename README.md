@@ -233,6 +233,47 @@ ssh:
   client_id: HAI-Client      # Custom client identifier for Paramiko
 ```
 
+## Server Filtering and Selection
+
+HAI provides a powerful `filter_servers` function to flexibly select servers from your inventory based on any attribute, with support for AND/OR logic and multi-value matching.
+
+### Usage
+
+```python
+from hai import filter_servers, ServerEntry
+
+# Suppose all_servers is a list of ServerEntry objects
+
+# Filter by a single attribute (AND logic by default)
+asia_servers = filter_servers(all_servers, location="asia")
+
+# Filter by multiple attributes (all must match)
+critical_windows = filter_servers(all_servers, os="windows", grade="critical")
+
+# OR logic: any criterion can match
+asia_or_windows = filter_servers(all_servers, location="asia", os="windows", logic="or")
+
+# Multi-value matching: pass a list for any field
+asia_or_europe = filter_servers(all_servers, location=["asia", "europe"], logic="or")
+
+# No duplicates: a server matching multiple criteria appears only once
+
+# The result is always a list of ServerEntry objects
+for server in asia_or_windows:
+    print(server.hostname, server.location, server.os)
+```
+
+**Arguments:**
+- `servers`: List of `ServerEntry` objects (from your inventory)
+- `logic`: `'and'` (default, all criteria must match) or `'or'` (any criterion matches)
+- `**criteria`: Any attribute(s) of `ServerEntry` (e.g., `location`, `os`, `grade`, `tool`, etc.)
+- Multi-value: Pass a list/tuple/set for any value to match any of those values
+
+**Guarantee:**
+- No duplicate servers in the result, even if a server matches multiple criteria (OR logic)
+
+See the `examples/` directory for more advanced usage.
+
 ## Real SMB and Impacket Functionality
 
 HAI now includes full implementation of SMB file transfer and WMI command execution using Impacket.

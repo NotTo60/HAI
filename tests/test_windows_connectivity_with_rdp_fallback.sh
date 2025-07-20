@@ -146,47 +146,47 @@ test_smb_connectivity() {
 # Main test execution
 echo "Starting connectivity tests..."
 
-# Test SMB first
-if test_smb_connectivity; then
+# Test RDP first
+if test_rdp_connectivity; then
     echo ""
     echo "=== FINAL RESULT ==="
-    echo "✅ SMB CONNECTIVITY SUCCESSFUL"
-    echo "Windows SMB connectivity is working properly"
-    echo "No need to test RDP - SMB is sufficient"
+    echo "✅ RDP CONNECTIVITY SUCCESSFUL"
+    echo "Windows RDP connectivity is working properly"
+    echo "No need to test SMB - RDP is sufficient"
     exit 0
 else
     echo ""
-    echo "❌ SMB CONNECTIVITY FAILED"
-    echo "Falling back to RDP connectivity test..."
+    echo "❌ RDP CONNECTIVITY FAILED"
+    echo "Falling back to SMB connectivity test..."
     
-    # Test RDP as fallback
-    if test_rdp_connectivity; then
+    # Test SMB as fallback
+    if test_smb_connectivity; then
         echo ""
         echo "=== FINAL RESULT ==="
-        echo "⚠️  SMB FAILED but RDP SUCCESSFUL"
-        echo "SMB connectivity failed, but RDP connectivity is working"
-        echo "Windows instance is reachable via RDP (port 3389)"
+        echo "⚠️  RDP FAILED but SMB SUCCESSFUL"
+        echo "RDP connectivity failed, but SMB connectivity is working"
+        echo "Windows instance is reachable via SMB (port 445)"
         echo ""
-        echo "RDP connection command (for manual testing):"
-        echo "xfreerdp /v:$TARGET_IP /u:Administrator /p:\"<password>\" /cert:ignore"
+        echo "SMB connection command (for manual testing):"
+        echo "smbclient //$TARGET_IP/TestShare -U Administrator"
         echo ""
-        echo "Troubleshooting SMB issues:"
-        echo "- Check Windows Firewall rules for SMB (port 445)"
-        echo "- Verify SMB service is running on Windows"
-        echo "- Ensure TestShare is created with proper permissions"
-        echo "- Check Administrator password and account status"
-        echo "- Verify SMB protocol versions are enabled"
+        echo "Troubleshooting RDP issues:"
+        echo "- Check Windows Firewall rules for RDP (port 3389)"
+        echo "- Verify Remote Desktop service is running on Windows"
+        echo "- Ensure Remote Desktop is enabled in System Properties"
+        echo "- Check if RDP is allowed in Windows Firewall"
+        echo "- Verify the instance security group allows port 3389"
         exit 1  # Exit with error as requested
     else
         echo ""
         echo "=== FINAL RESULT ==="
-        echo "❌ BOTH SMB AND RDP CONNECTIVITY FAILED"
+        echo "❌ BOTH RDP AND SMB CONNECTIVITY FAILED"
         echo "Windows instance is not reachable via either protocol"
         echo ""
         echo "Debugging information:"
         echo "- Target IP: $TARGET_IP"
-        echo "- SMB port 445: Not accessible"
         echo "- RDP port 3389: Not accessible"
+        echo "- SMB port 445: Not accessible"
         echo ""
         echo "Possible issues:"
         echo "- Windows instance may not be running"

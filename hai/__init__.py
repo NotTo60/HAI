@@ -45,7 +45,8 @@ from .core import (
     run_commands,
     ServerEntry,
     TunnelRoute,
-    TunnelHop
+    TunnelHop,
+    filter_servers
 )
 
 from .core.threaded_operations import (
@@ -70,6 +71,7 @@ __all__ = [
     'ServerEntry',
     'TunnelRoute',
     'TunnelHop',
+    'filter_servers',
     
     # Threaded operations
     'run_command_on_servers',

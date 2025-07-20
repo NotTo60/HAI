@@ -20,7 +20,7 @@ from .threaded_operations import (
     download_file_from_servers,
     custom_operation_on_servers
 )
-from .server_schema import ServerEntry, TunnelRoute, TunnelHop
+from .server_schema import ServerEntry, TunnelRoute, TunnelHop, filter_servers
 from .tunnel_builder import TunnelBuilder
 
 __all__ = [
@@ -39,5 +39,6 @@ __all__ = [
     'ServerEntry',
     'TunnelRoute',
     'TunnelHop',
-    'TunnelBuilder'
+    'TunnelBuilder',
+    'filter_servers'
 ] 
