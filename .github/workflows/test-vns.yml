@@ -115,6 +115,23 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: bash tests/test_linux_ssh_connectivity.sh ${{ inputs.linux_ip }} ${{ inputs.detected_username }}
 
+      - name: Test RDP connectivity
+        run: |
+          echo "=== TESTING RDP CONNECTIVITY ==="
+          echo "Windows IP: ${{ inputs.windows_ip }}"
+          echo "Testing RDP port 3389..."
+          
+          # Test if RDP port is open
+          if nc -z -w5 ${{ inputs.windows_ip }} 3389; then
+            echo "✅ RDP port 3389 is open and accessible"
+          else
+            echo "❌ RDP port 3389 is not accessible"
+          fi
+          
+          echo "RDP connection command (for manual testing):"
+          echo "xfreerdp /v:${{ inputs.windows_ip }} /u:Administrator /p:\"<password_from_above>\" /cert:ignore"
+          echo "=== END RDP TEST ==="
+
       - name: Test SMB to Windows (cross-platform)
         working-directory: ${{ github.workspace }}
         run: |
@@ -148,21 +165,4 @@ jobs:
               bash tests/test_windows_smb_connectivity.sh ${{ inputs.windows_ip }}
             fi
           fi
-        shell: bash
-
-      - name: Test RDP connectivity
-        run: |
-          echo "=== TESTING RDP CONNECTIVITY ==="
-          echo "Windows IP: ${{ inputs.windows_ip }}"
-          echo "Testing RDP port 3389..."
-          
-          # Test if RDP port is open
-          if nc -z -w5 ${{ inputs.windows_ip }} 3389; then
-            echo "✅ RDP port 3389 is open and accessible"
-          else
-            echo "❌ RDP port 3389 is not accessible"
-          fi
-          
-          echo "RDP connection command (for manual testing):"
-          echo "xfreerdp /v:${{ inputs.windows_ip }} /u:Administrator /p:\"<password_from_above>\" /cert:ignore"
-          echo "=== END RDP TEST ===" 
+        shell: bash 
