@@ -49,7 +49,7 @@ jobs:
           
           # Get the Windows instance ID and debug info
           WINDOWS_INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=hai-windows-ci" "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Name,Values=hai-windows-ci" "Name=tag:WorkflowRunID,Values=${{ github.run_id }}" "Name=instance-state-name,Values=running" \
             --query 'Reservations[0].Instances[0].InstanceId' \
             --output text 2>/dev/null || echo "")
           if [ -n "$WINDOWS_INSTANCE_ID" ]; then
